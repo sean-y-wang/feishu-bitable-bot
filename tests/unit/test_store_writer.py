@@ -117,3 +117,16 @@ def test_lark_api_wrapper():
     with pytest.raises(FeishuAPIError) as ei:
         LarkFeishuAPI(bad).create_record("a", "t", {}, "x")
     assert ei.value.code == 91403 and ei.value.http_status == 400
+
+
+def test_client_token_is_deterministic_uuid4():
+    import re
+    import uuid
+
+    toks = [client_token_for(f"om_{i}") for i in range(50)]
+    assert toks == [client_token_for(f"om_{i}") for i in range(50)]
+    assert len(set(toks)) == 50
+    for t in toks:
+        u = uuid.UUID(t)
+        assert u.version == 4 and u.variant == uuid.RFC_4122
+        assert re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", t)

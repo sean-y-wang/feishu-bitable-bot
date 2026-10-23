@@ -24,7 +24,8 @@ _NS = uuid.UUID("6f1f4a52-0b8e-4b5c-9d3f-6f2b8f8a7c11")
 
 
 def client_token_for(source_message_id: str) -> str:
-    return str(uuid.uuid5(_NS, source_message_id))
+    # Feishu requires UUIDv4 format; keep it deterministic by stamping v4 bits onto a uuid5 digest.
+    return str(uuid.UUID(bytes=uuid.uuid5(_NS, source_message_id).bytes, version=4))
 
 
 def record_url(role: Role, record_id: str, base: str = "https://feishu.cn") -> str:
