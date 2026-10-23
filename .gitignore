@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/
+*.db
+.pytest_cache/
+.coverage
+dist/
+config/roles.yaml

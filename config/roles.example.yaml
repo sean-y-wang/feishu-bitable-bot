@@ -1,0 +1,52 @@
+# Copy to config/roles.yaml and edit. Credentials are NOT written here: use ${ENV_VAR}.
+version: 1
+timezone: Asia/Shanghai
+llm:
+  default: qwen
+  providers:
+    openai:   { type: openai_compatible, base_url: https://api.openai.com/v1, api_key: "${OPENAI_API_KEY}", model: gpt-4o-mini, supports_json_schema: true }
+    qwen:     { type: openai_compatible, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, api_key: "${DASHSCOPE_API_KEY}", model: qwen-plus }
+    deepseek: { type: openai_compatible, base_url: https://api.deepseek.com, api_key: "${DEEPSEEK_API_KEY}", model: deepseek-chat }
+    private:  { type: openai_compatible, base_url: "http://10.0.0.8:8000/v1", api_key: "${PRIVATE_LLM_KEY}", model: qwen2.5-72b-instruct }
+session: { timeout_minutes: 30, max_followups: 2 }
+chats_allowlist: []          # empty = all chats allowed
+audit_store_text: true       # false = do not store original text in audit_log
+
+roles:
+  - command: /日报
+    aliases: [/daily]
+    name: 研发日报
+    llm: qwen
+    allowed_chats: []
+    allowed_users: []
+    target: { app_token: bascnXXXX, table_id: tblXXXX }
+    fields:
+      - { key: reporter, field: 提交人, type: user, required: true, default: $sender }
+      - { key: date, field: 日期, type: date, required: true, default: $today }
+      - { key: done, field: 今日完成, type: text, required: true, description: 今天完成的工作 }
+      - { key: plan, field: 明日计划, type: text, required: false }
+      - { key: hours, field: 工时, type: number, min: 0, max: 24, precision: 1 }
+      - key: status
+        field: 状态
+        type: single_select
+        required: true
+        default: 正常
+        options:
+          - { value: 正常, synonyms: [顺利, ok, 按计划] }
+          - { value: 延期, synonyms: [delay, 滞后, 推迟] }
+          - { value: 阻塞, synonyms: [卡住, blocked] }
+      - key: tags
+        field: 标签
+        type: multi_select
+        options: [{ value: 前端 }, { value: 后端, synonyms: [服务端, server] }, { value: 测试 }]
+      - { key: link, field: 相关链接, type: url }
+
+  - command: /bug
+    name: 缺陷登记
+    target: { app_token: bascnYYYY, table_id: tblYYYY }
+    fields:
+      - { key: title, field: 标题, type: text, required: true, max_len: 100 }
+      - { key: severity, field: 严重程度, type: single_select, required: true, default: P2,
+          options: [{value: P0, synonyms: [紧急, 线上故障]}, {value: P1}, {value: P2}, {value: P3}] }
+      - { key: owner, field: 负责人, type: user, required: false }
+      - { key: due, field: 截止日期, type: date }
