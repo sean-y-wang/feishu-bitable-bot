@@ -8,7 +8,11 @@
 - `audit_store_text`：是否在 SQLite `audit_log` 中保存原文。
 - `roles[]`：`command`、`aliases`、`name`、`llm`（可选覆盖默认）、`allowed_chats`、`allowed_users`（open_id）、`target{app_token,table_id}`、`fields[]`。
 - `fields[]`：`key`（给 AI 的字段名）、`field`（表格列名）、`type`、`required`、`default`、`description`、`options[{value,synonyms}]`、`min`/`max`/`precision`（number）、`max_len`（text）。
-- 内置默认值变量：`$sender`、`$today`、`$now`、`$chat_name`、`$message_link`（MVP 中 `$chat_name`/`$message_link` 暂为空）。
+- 内置默认值变量：`$sender`（人员字段=发送者）、`$sender_name`、`$today`、`$now`、`$raw_text`、`$context`、`$chat_name`、`$message_link`。其中 `$raw_text`/`$context`/`$chat_name`/`$message_link`/`$now` 为系统字段：不出现在 LLM schema 中，始终由系统填写。详见 [feishu-app-setup.md](feishu-app-setup.md#溯源字段)。
+- 角色可写 `description`，帮助 LLM 做意图识别。
+- `p2p_enabled`（默认 true）：私聊无需 @。
+- `intent`：`enabled`（false 时恢复“必须用命令”）、`min_confidence`（默认 0.7）、`llm`（可选，默认 `llm.default`）。
+- `context`：`enabled`、`recent_messages`（0–50，默认 10）、`include_parent`、`include_thread`、`thread_messages`、`max_chars`（默认 3000）、`name_cache_seconds`（默认 600）。
 
 环境变量：
 

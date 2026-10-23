@@ -3,9 +3,12 @@
 from bitable_bot.providers.base import LLMError
 from bitable_bot.writer import FeishuAPIError
 
-from ..conftest import make_msg
+from ..conftest import NOW, make_msg
 
 DAY = 1792684800000
+
+
+LINK = "https://applink.feishu.cn/client/chat/open?openChatId=oc_1"
 
 
 def out(**fields):
@@ -19,7 +22,13 @@ def test_complete_message_written(harness):
     rec = h.api.records[0]
     assert rec["app_token"] == "bascnXXXX" and rec["table_id"] == "tblXXXX"
     assert rec["fields"] == {"提交人": [{"id": "ou_alice"}], "日期": DAY, "今日完成": "完成登录模块",
-                             "明日计划": "联调", "工时": 8, "状态": "正常", "标签": ["后端"]}
+                             "明日计划": "联调", "工时": 8, "状态": "正常", "标签": ["后端"],
+                             # traceability fields filled by the system
+                             "原始消息": "/日报 今天完成了登录模块，明天联调，8小时，后端",
+                             "来源群": "oc_1",  # chat name unknown -> chat_id
+                             "消息链接": {"link": LINK, "text": LINK},
+                             "提交时间": int(NOW * 1000)}
+    assert "原始消息" not in h.api.replies[-1]["text"]  # receipt hides raw text
     reply = h.api.replies[-1]["text"]
     assert reply.startswith("✅ 已记录到「研发日报」") and "日期：2026-10-23" in reply and "record=rec1" in reply
     assert h.store.audit_rows()[-1]["result"] == "ok"
@@ -38,7 +47,10 @@ def test_followup_in_thread_then_write(harness):
     # reply in the bot's thread without @/command
     h.service.handle(make_msg("登录页白屏", root_id=m1.message_id, parent_id=ask["id"]))
     rec = h.api.records[0]["fields"]
-    assert rec == {"标题": "登录页白屏", "严重程度": "P0", "负责人": [{"id": "ou_z"}]}
+    assert rec == {"标题": "登录页白屏", "严重程度": "P0", "负责人": [{"id": "ou_z"}],
+                   "提出人": "ou_alice",  # no contact/member name available -> open_id
+                   "原始消息": "/bug 线上紧急，负责人 @张三", "来源群": "oc_1",
+                   "消息链接": {"link": LINK, "text": LINK}, "提交时间": int(NOW * 1000)}
     assert "补充回答" in h.provider.calls[1][1]["content"]
     assert h.api.replies[-1]["message_id"] == m1.message_id
     assert "负责人：张三" in h.api.replies[-1]["text"]
@@ -73,8 +85,9 @@ def test_session_timeout_sweeper(harness):
     h.clock.t += 31 * 60
     assert h.service.expire_sessions() == 1
     assert "超时" in h.api.replies[-1]["text"] and h.api.replies[-1]["message_id"] == m.message_id
-    h.service.handle(make_msg("补充"))  # no session any more
-    assert "请使用命令开头" in h.api.replies[-1]["text"]
+    h.provider.outputs = [{"role": None, "confidence": 0, "reason": "chat"}]
+    h.service.handle(make_msg("补充"))  # no session any more -> intent detection -> ask to pick a role
+    assert "我不确定要记录到哪张表" in h.api.replies[-1]["text"]
 
 
 def test_cancel(harness):
@@ -104,8 +117,10 @@ def test_help_unknown_plain_and_nontext(harness):
     assert "/日报" in h.api.replies[-1]["text"]
     h.service.handle(make_msg("/xyz hi"))
     assert h.api.replies[-1]["text"].startswith("未知命令 /xyz")
+    h.provider.outputs = [{"role": None, "confidence": 0.1, "reason": "greeting"}]
     h.service.handle(make_msg("你好"))
-    assert "请使用命令开头" in h.api.replies[-1]["text"]
+    assert "我不确定要记录到哪张表" in h.api.replies[-1]["text"]
+    h.service.handle(make_msg("/取消"))
     h.service.handle(make_msg("/bug"))
     assert "请在命令后附上内容" in h.api.replies[-1]["text"]
     m = make_msg("x")

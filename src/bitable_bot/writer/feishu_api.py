@@ -21,6 +21,18 @@ class FeishuAPI(Protocol):
 
     def list_chat_members(self, chat_id: str) -> list[tuple[str, str]]: ...
 
+    # ---- context / traceability (all optional: failures degrade gracefully) ----
+    def get_bot_open_id(self) -> str: ...
+
+    def get_message(self, message_id: str) -> dict[str, Any]: ...
+
+    def list_messages(self, container_type: str, container_id: str, page_size: int,
+                      newest_first: bool = True) -> list[dict[str, Any]]: ...
+
+    def get_user_name(self, open_id: str) -> str: ...
+
+    def get_chat_name(self, chat_id: str) -> str: ...
+
 
 class LarkFeishuAPI:
     """Production implementation backed by lark_oapi.Client (handles tenant_access_token)."""
@@ -84,3 +96,57 @@ class LarkFeishuAPI:
             if not resp.data.has_more:
                 return out
             page_token = resp.data.page_token
+
+    # ---- raw JSON calls (keep unknown fields such as message_app_link / message_position) ----
+    def _get_json(self, uri: str, queries: list[tuple[str, str]] | None = None) -> dict[str, Any]:
+        import lark_oapi as lark
+
+        req = (
+            lark.BaseRequest.builder()
+            .http_method(lark.HttpMethod.GET)
+            .uri(uri)
+            .token_types({lark.AccessTokenType.TENANT})
+            .queries(queries or [])
+            .build()
+        )
+        resp = self.client.request(req)
+        raw = getattr(resp, "raw", None)
+        try:
+            body = json.loads(raw.content) if raw is not None and raw.content else {}
+        except (ValueError, TypeError):
+            body = {}
+        code = body.get("code", resp.code if resp.code is not None else -1)
+        if code != 0:
+            raise FeishuAPIError(code, body.get("msg") or resp.msg or "request failed", getattr(raw, "status_code", None))
+        return body.get("data") or {}
+
+    def get_bot_open_id(self) -> str:
+        import lark_oapi as lark
+
+        req = (
+            lark.BaseRequest.builder().http_method(lark.HttpMethod.GET).uri("/open-apis/bot/v3/info")
+            .token_types({lark.AccessTokenType.TENANT}).build()
+        )
+        resp = self.client.request(req)
+        body = json.loads(resp.raw.content) if getattr(resp, "raw", None) is not None else {}
+        if body.get("code") != 0:
+            raise FeishuAPIError(body.get("code", -1), body.get("msg", "bot info failed"))
+        return (body.get("bot") or {}).get("open_id", "")
+
+    def get_message(self, message_id: str) -> dict[str, Any]:
+        items = self._get_json(f"/open-apis/im/v1/messages/{message_id}").get("items") or []
+        return items[0] if items else {}
+
+    def list_messages(self, container_type: str, container_id: str, page_size: int,
+                      newest_first: bool = True) -> list[dict[str, Any]]:
+        q = [("container_id_type", container_type), ("container_id", container_id),
+             ("page_size", str(max(1, min(50, page_size)))),
+             ("sort_type", "ByCreateTimeDesc" if newest_first else "ByCreateTimeAsc")]
+        return self._get_json("/open-apis/im/v1/messages", q).get("items") or []
+
+    def get_user_name(self, open_id: str) -> str:
+        data = self._get_json(f"/open-apis/contact/v3/users/{open_id}", [("user_id_type", "open_id")])
+        return (data.get("user") or {}).get("name", "")
+
+    def get_chat_name(self, chat_id: str) -> str:
+        return self._get_json(f"/open-apis/im/v1/chats/{chat_id}").get("name", "")

@@ -31,6 +31,12 @@ class FakeAPI:
         self.members: list[tuple[str, str]] = []
         self.create_errors: list[FeishuAPIError] = []
         self._n = 0
+        self.users: dict[str, str] = {}        # open_id -> contact name
+        self.chat_names: dict[str, str] = {}
+        self.messages: dict[str, dict] = {}    # message_id -> raw item (get_message)
+        self.history: dict[tuple[str, str], list[dict]] = {}  # (container_type, id) -> items, oldest first
+        self.fail: set[str] = set()            # method names that raise FeishuAPIError
+        self.calls: list[tuple] = []
 
     def create_record(self, app_token, table_id, fields, client_token):
         if self.create_errors:
@@ -44,8 +50,37 @@ class FakeAPI:
         self.replies.append(dict(message_id=message_id, text=text, in_thread=in_thread, id=mid))
         return mid
 
+    def _maybe_fail(self, name):
+        self.calls.append((name,))
+        if name in self.fail:
+            raise FeishuAPIError(99991672, f"{name} denied")
+
     def list_chat_members(self, chat_id):
+        self._maybe_fail("list_chat_members")
         return self.members
+
+    def get_bot_open_id(self):
+        self._maybe_fail("get_bot_open_id")
+        return "ou_bot"
+
+    def get_message(self, message_id):
+        self._maybe_fail("get_message")
+        return self.messages.get(message_id, {})
+
+    def list_messages(self, container_type, container_id, page_size, newest_first=True):
+        self._maybe_fail(f"list_messages:{container_type}")
+        items = list(self.history.get((container_type, container_id), []))
+        if newest_first:
+            items.reverse()
+        return items[:page_size]
+
+    def get_user_name(self, open_id):
+        self._maybe_fail("get_user_name")
+        return self.users.get(open_id, "")
+
+    def get_chat_name(self, chat_id):
+        self._maybe_fail("get_chat_name")
+        return self.chat_names.get(chat_id, "")
 
 
 class FakeProvider:
@@ -95,14 +130,14 @@ _seq = [0]
 
 
 def make_msg(text: str, *, sender="ou_alice", chat="oc_1", mentions=None, root_id="", parent_id="",
-             message_id=None, event_id=None, chat_type="group") -> IncomingMessage:
+             message_id=None, event_id=None, chat_type="group", at_bot=True, thread_id="") -> IncomingMessage:
     _seq[0] += 1
-    ms = [Mention("@_user_1", "记录机器人", "ou_bot")] + [
-        Mention(f"@_user_{i + 2}", n, oid) for i, (n, oid) in enumerate(mentions or [])
-    ]
+    others = [Mention(f"@_user_{i + 2}", n, oid) for i, (n, oid) in enumerate(mentions or [])]
+    ms = ([Mention("@_user_1", "记录机器人", "ou_bot")] if at_bot else []) + others
+    prefix = "@_user_1 " if at_bot else ""
     return IncomingMessage(
         event_id=event_id or f"ev{_seq[0]}", message_id=message_id or f"om_{_seq[0]}", chat_id=chat,
         chat_type=chat_type, sender_open_id=sender, message_type="text",
-        content=json.dumps({"text": f"@_user_1 {text}"}, ensure_ascii=False),
-        mentions=ms, root_id=root_id, parent_id=parent_id,
+        content=json.dumps({"text": f"{prefix}{text}"}, ensure_ascii=False),
+        mentions=ms, root_id=root_id, parent_id=parent_id, thread_id=thread_id,
     )

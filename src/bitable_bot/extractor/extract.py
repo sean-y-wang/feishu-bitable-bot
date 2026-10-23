@@ -11,7 +11,7 @@ import structlog
 
 from ..config.models import Role
 from ..providers.base import LLMError, LLMProvider
-from .schema import build_schema
+from .schema import build_schema, llm_fields
 
 log = structlog.get_logger(__name__)
 
@@ -53,11 +53,11 @@ def check_shape(obj: dict[str, Any], role: Role) -> Extraction:
     fields = obj.get("fields")
     if not isinstance(fields, dict):
         # tolerate flat output {key: value}
-        if any(f.key in obj for f in role.fields):
+        if any(f.key in obj for f in llm_fields(role)):
             fields = obj
         else:
             raise ValueError("缺少 fields 对象")
-    allowed = {f.key for f in role.fields}
+    allowed = {f.key for f in llm_fields(role)}
     # whitelist: drop any key not declared by the template
     clean = {k: v for k, v in fields.items() if k in allowed}
     missing = [m for m in obj.get("missing") or [] if m in allowed] if isinstance(obj.get("missing"), list) else []

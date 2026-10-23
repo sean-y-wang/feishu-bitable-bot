@@ -6,6 +6,7 @@ import pytest
 from bitable_bot.extractor import ExtractionError, Extractor, build_messages, build_schema, parse_json
 from bitable_bot.extractor.prompt import FENCE, FENCE_END
 from bitable_bot.providers.base import LLMError
+from bitable_bot.validator import is_auto
 
 from ..conftest import NOW, FakeProvider
 
@@ -14,7 +15,8 @@ def test_schema_shape(cfg):
     role = cfg.find_role("/日报")
     s = build_schema(role)
     f = s["properties"]["fields"]
-    assert f["required"] == [x.key for x in role.fields]
+    assert f["required"] == [x.key for x in role.fields if not is_auto(x)]
+    assert "raw_text" not in f["properties"] and "submitted_at" not in f["properties"]
     assert f["additionalProperties"] is False
     assert f["properties"]["status"]["enum"] == ["正常", "延期", "阻塞", None]
     assert f["properties"]["tags"]["items"]["enum"] == ["前端", "后端", "测试"]

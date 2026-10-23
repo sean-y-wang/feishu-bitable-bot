@@ -32,6 +32,7 @@ class IncomingMessage:
     mentions: list[Mention] = field(default_factory=list)
     root_id: str = ""
     parent_id: str = ""
+    thread_id: str = ""
     create_time_ms: int = 0
 
 
@@ -59,14 +60,27 @@ def extract_text(msg_type: str, content: str) -> str:
     return ""
 
 
-def clean_text(text: str, mentions: list[Mention], bot_open_id: str | None) -> tuple[str, dict[str, str]]:
+def bot_mentioned(mentions: list[Mention], text: str, bot_open_id: str | None) -> bool:
+    if bot_open_id:
+        return any(m.open_id == bot_open_id for m in mentions)
+    # unknown bot id: fall back to "message starts with a mention" (or any mention for non-text messages)
+    if not text.strip():
+        return bool(mentions)
+    return any(text.strip().startswith(m.key) for m in mentions)
+
+
+def clean_text(text: str, mentions: list[Mention], bot_open_id: str | None,
+               strip_leading: bool = True) -> tuple[str, dict[str, str]]:
     """Remove the bot mention(s); render other mentions as @name. Returns (text, {name: open_id})."""
     people: dict[str, str] = {}
     text = text.strip()
     # the leading mention is treated as the bot when bot_open_id is unknown
     bot_found = False
     for m in sorted(mentions, key=lambda x: text.find(x.key) if x.key in text else 1 << 30):
-        is_bot = (m.open_id == bot_open_id) if bot_open_id else (not bot_found and text.startswith(m.key))
+        if bot_open_id:
+            is_bot = m.open_id == bot_open_id
+        else:
+            is_bot = strip_leading and not bot_found and text.startswith(m.key)
         if is_bot:
             bot_found = True
             text = re.sub(re.escape(m.key) + r"(?!\d)", "", text, count=1).strip()

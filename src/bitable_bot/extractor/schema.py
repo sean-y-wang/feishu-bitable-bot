@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config.models import FieldSpec, Role
+from ..validator.normalize import is_auto
 
 _TYPE_SCHEMA: dict[str, dict[str, Any]] = {
     "text": {"type": ["string", "null"]},
@@ -28,8 +29,14 @@ def field_schema(spec: FieldSpec) -> dict[str, Any]:
     return s
 
 
+def llm_fields(role: Role) -> list[FieldSpec]:
+    """Fields the LLM may fill (system-filled traceability fields are excluded)."""
+    return [f for f in role.fields if not is_auto(f)]
+
+
 def build_schema(role: Role) -> dict[str, Any]:
-    keys = [f.key for f in role.fields]
+    fields = llm_fields(role)
+    keys = [f.key for f in fields]
     return {
         "type": "object",
         "additionalProperties": False,
@@ -39,7 +46,7 @@ def build_schema(role: Role) -> dict[str, Any]:
                 "type": "object",
                 "additionalProperties": False,
                 "required": keys,
-                "properties": {f.key: field_schema(f) for f in role.fields},
+                "properties": {f.key: field_schema(f) for f in fields},
             },
             "missing": {"type": "array", "items": {"type": "string", "enum": keys}},
             "confidence": {
@@ -54,7 +61,7 @@ def build_schema(role: Role) -> dict[str, Any]:
 
 def describe_fields(role: Role) -> str:
     lines = []
-    for f in role.fields:
+    for f in llm_fields(role):
         parts = [f"- {f.key}（{f.field}）类型={f.type}", "必填" if f.required else "可选"]
         if f.description:
             parts.append(f"说明：{f.description}")

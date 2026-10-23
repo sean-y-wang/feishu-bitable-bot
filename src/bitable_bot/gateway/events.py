@@ -33,5 +33,6 @@ def to_incoming(data: Any) -> IncomingMessage:
         mentions=mentions,
         root_id=_g(msg, "root_id"),
         parent_id=_g(msg, "parent_id"),
+        thread_id=_g(msg, "thread_id"),
         create_time_ms=int(_g(msg, "create_time") or 0),
     )

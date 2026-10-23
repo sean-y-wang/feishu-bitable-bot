@@ -30,6 +30,8 @@ class Context:
     sender_name: str = ""
     chat_name: str = ""
     message_link: str = ""
+    raw_text: str = ""
+    context_text: str = ""
     mentions: dict[str, str] = field(default_factory=dict)  # name -> open_id
     # resolves a display name to candidate open_ids among chat members
     member_lookup: Callable[[str], list[str]] | None = None
@@ -271,20 +273,39 @@ def normalize_value(spec: FieldSpec, v: Any, ctx: Context) -> Any:
     raise Missing(f"unsupported type {t}")  # pragma: no cover
 
 
+# Variables that are always filled by the system (never asked from / overridable by the LLM).
+AUTO_VARS = frozenset({"$raw_text", "$context", "$chat_name", "$message_link", "$now"})
+
+
+def is_auto(spec: FieldSpec) -> bool:
+    return isinstance(spec.default, str) and spec.default in AUTO_VARS
+
+
 def resolve_default(spec: FieldSpec, ctx: Context) -> Any:
     d = spec.default
     if d is None:
         return None
+    local_now = ctx.now.astimezone(ZoneInfo(ctx.tz))
     if d == "$sender":
         return ctx.sender_open_id or None
+    if d == "$sender_name":
+        if spec.type == "user":
+            return ctx.sender_open_id or None
+        return ctx.sender_name or ctx.sender_open_id or None
     if d == "$today":
-        return ctx.now.astimezone(ZoneInfo(ctx.tz)).date().isoformat()
+        return local_now.date().isoformat()
     if d == "$now":
-        return int(ctx.now.timestamp() * 1000)
+        if spec.type == "date":
+            return int(ctx.now.timestamp() * 1000)
+        return local_now.strftime("%Y-%m-%d %H:%M:%S")
     if d == "$chat_name":
         return ctx.chat_name or None
     if d == "$message_link":
         return ctx.message_link or None
+    if d == "$raw_text":
+        return ctx.raw_text or None
+    if d == "$context":
+        return ctx.context_text or None
     return d
 
 
@@ -304,6 +325,17 @@ def validate(fields: list[FieldSpec], raw: dict[str, Any], ctx: Context) -> Vali
     missing: dict[str, str] = {}
     for spec in fields:
         reason = ""
+        if is_auto(spec):
+            d = resolve_default(spec, ctx)
+            if d is not None:
+                try:
+                    values[spec.key] = normalize_value(spec, d, ctx)
+                    continue
+                except Missing as e:
+                    reason = e.reason
+            if spec.required:
+                missing[spec.key] = reason or "系统未能获取"
+            continue
         try:
             values[spec.key] = normalize_value(spec, raw.get(spec.key), ctx)
             continue

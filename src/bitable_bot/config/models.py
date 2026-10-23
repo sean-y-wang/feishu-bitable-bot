@@ -50,6 +50,7 @@ class Role(BaseModel):
     command: str
     aliases: list[str] = Field(default_factory=list)
     name: str
+    description: str | None = None  # helps natural-language role detection
     llm: str | None = None
     allowed_chats: list[str] = Field(default_factory=list)
     allowed_users: list[str] = Field(default_factory=list)
@@ -99,6 +100,26 @@ class LLMConfig(BaseModel):
         return self
 
 
+class IntentConfig(BaseModel):
+    """Natural-language role detection when no slash command is given."""
+
+    enabled: bool = True
+    min_confidence: float = Field(0.7, ge=0, le=1)
+    llm: str | None = None
+
+
+class ContextConfig(BaseModel):
+    """Conversation context pulled when the bot is triggered."""
+
+    enabled: bool = True
+    recent_messages: int = Field(10, ge=0, le=50)
+    include_parent: bool = True
+    include_thread: bool = True
+    thread_messages: int = Field(20, ge=0, le=50)
+    max_chars: int = Field(3000, ge=200)
+    name_cache_seconds: int = 600
+
+
 class SessionConfig(BaseModel):
     timeout_minutes: int = 30
     max_followups: int = 2
@@ -109,6 +130,9 @@ class AppConfig(BaseModel):
     timezone: str = "Asia/Shanghai"
     llm: LLMConfig
     session: SessionConfig = Field(default_factory=SessionConfig)
+    intent: IntentConfig = Field(default_factory=IntentConfig)
+    context: ContextConfig = Field(default_factory=ContextConfig)
+    p2p_enabled: bool = True
     chats_allowlist: list[str] = Field(default_factory=list)
     audit_store_text: bool = True
     roles: list[Role]
@@ -123,6 +147,8 @@ class AppConfig(BaseModel):
                 seen.add(c)
             if r.llm and r.llm not in self.llm.providers:
                 raise ValueError(f"role {r.command}: unknown llm {r.llm!r}")
+        if self.intent.llm and self.intent.llm not in self.llm.providers:
+            raise ValueError(f"intent.llm {self.intent.llm!r} not in providers")
         return self
 
     def find_role(self, command: str) -> Role | None:
@@ -130,3 +156,15 @@ class AppConfig(BaseModel):
             if command in r.commands:
                 return r
         return None
+
+    def match_role(self, text: str) -> Role | None:
+        """Resolve a user's role choice: command / alias (with or without slash) or role name."""
+        t = text.strip().replace("／", "/").strip("「」“”\"'。.！! ")
+        if not t:
+            return None
+        for r in self.roles:
+            names = [r.name, *r.commands, *(c[1:] for c in r.commands)]
+            if t in names or t.casefold() in (n.casefold() for n in names):
+                return r
+        hits = [r for r in self.roles if r.name in t or any(c in t for c in r.commands)]
+        return hits[0] if len(hits) == 1 else None

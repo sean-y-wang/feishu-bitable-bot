@@ -11,11 +11,32 @@ llm:
 session: { timeout_minutes: 30, max_followups: 2 }
 chats_allowlist: []          # empty = all chats allowed
 audit_store_text: true       # false = do not store original text in audit_log
+p2p_enabled: true            # private chat: any message triggers the bot, no @ needed
+
+# Without a slash command the LLM picks the role. Below min_confidence the bot asks the user to confirm.
+intent:
+  enabled: true
+  min_confidence: 0.7
+  # llm: qwen                # optional, defaults to llm.default
+
+# Context pulled when triggered (needs extra scopes, see docs/feishu-app-setup.md; degrades gracefully).
+context:
+  enabled: true
+  recent_messages: 10        # latest N messages of the chat (0 = off, max 50)
+  include_parent: true       # the replied/quoted message
+  include_thread: true       # messages of the current thread
+  thread_messages: 20
+  max_chars: 3000            # cap for the LLM prompt and $context
+
+# Traceability placeholders (usable as `default:`):
+#   $sender  $sender_name  $today  $now  $raw_text  $context  $chat_name  $message_link
+# $raw_text / $context / $chat_name / $message_link / $now are always filled by the system (not by the LLM).
 
 roles:
   - command: /日报
     aliases: [/daily]
     name: 研发日报
+    description: 个人每日工作汇报：今天做了什么、明天计划、工时、进度
     llm: qwen
     allowed_chats: []
     allowed_users: []
@@ -40,9 +61,16 @@ roles:
         type: multi_select
         options: [{ value: 前端 }, { value: 后端, synonyms: [服务端, server] }, { value: 测试 }]
       - { key: link, field: 相关链接, type: url }
+      # traceability (提交人 above already records who submitted)
+      - { key: raw_text, field: 原始消息, type: text, default: $raw_text }
+      - { key: context, field: 上下文摘录, type: text, default: $context }
+      - { key: source_chat, field: 来源群, type: text, default: $chat_name }
+      - { key: message_link, field: 消息链接, type: url, default: $message_link }
+      - { key: submitted_at, field: 提交时间, type: date, default: $now }
 
   - command: /bug
     name: 缺陷登记
+    description: 报告 bug、线上问题、报错、故障
     target: { app_token: bascnYYYY, table_id: tblYYYY }
     fields:
       - { key: title, field: 标题, type: text, required: true, max_len: 100 }
@@ -50,3 +78,10 @@ roles:
           options: [{value: P0, synonyms: [紧急, 线上故障]}, {value: P1}, {value: P2}, {value: P3}] }
       - { key: owner, field: 负责人, type: user, required: false }
       - { key: due, field: 截止日期, type: date }
+      # traceability
+      - { key: proposer, field: 提出人, type: text, default: $sender_name, description: 提出问题的人；未明确提到他人时留空 }
+      - { key: raw_text, field: 原始消息, type: text, default: $raw_text }
+      - { key: context, field: 上下文摘录, type: text, default: $context }
+      - { key: source_chat, field: 来源群, type: text, default: $chat_name }
+      - { key: message_link, field: 消息链接, type: url, default: $message_link }
+      - { key: submitted_at, field: 提交时间, type: date, default: $now }
