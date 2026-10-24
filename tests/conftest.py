@@ -7,6 +7,7 @@ import pytest
 
 from bitable_bot.config import load_config
 from bitable_bot.extractor import Extractor
+from bitable_bot.query import QueryService
 from bitable_bot.router import IncomingMessage, Mention
 from bitable_bot.service import BotService
 from bitable_bot.session import Store
@@ -31,12 +32,14 @@ class FakeAPI:
         self.members: list[tuple[str, str]] = []
         self.create_errors: list[FeishuAPIError] = []
         self._n = 0
-        self.users: dict[str, str] = {}        # open_id -> contact name
+        self.users: dict[str, str] = {}  # open_id -> contact name
         self.chat_names: dict[str, str] = {}
-        self.messages: dict[str, dict] = {}    # message_id -> raw item (get_message)
+        self.messages: dict[str, dict] = {}  # message_id -> raw item (get_message)
         self.history: dict[tuple[str, str], list[dict]] = {}  # (container_type, id) -> items, oldest first
-        self.fail: set[str] = set()            # method names that raise FeishuAPIError
+        self.fail: set[str] = set()  # method names that raise FeishuAPIError
         self.calls: list[tuple] = []
+        self.bitable_rows: list[dict] = []  # for search/list records
+        self.cards_ok = False  # False → reply_card raises → text fallback
 
     def create_record(self, app_token, table_id, fields, client_token):
         if self.create_errors:
@@ -47,8 +50,57 @@ class FakeAPI:
     def reply_text(self, message_id, text, in_thread=False):
         self._n += 1
         mid = f"om_bot{self._n}"
-        self.replies.append(dict(message_id=message_id, text=text, in_thread=in_thread, id=mid))
+        self.replies.append(dict(message_id=message_id, text=text, in_thread=in_thread, id=mid, type="text"))
         return mid
+
+    def reply_card(self, message_id, card, in_thread=False):
+        if not self.cards_ok:
+            raise FeishuAPIError(230001, "card not enabled in fake")
+        self._n += 1
+        mid = f"om_bot{self._n}"
+        self.replies.append(
+            dict(
+                message_id=message_id,
+                card=card,
+                in_thread=in_thread,
+                id=mid,
+                type="interactive",
+                text=card.get("header", {}).get("title", {}).get("content", ""),
+            )
+        )
+        return mid
+
+    def search_records(self, app_token, table_id, filter_info, page_size=20):
+        self._maybe_fail("search_records")
+        items = [
+            r
+            for r in self.bitable_rows
+            if r.get("app_token", app_token) == app_token and r.get("table_id", table_id) == table_id
+        ]
+        # naive contains filter
+        conds = (filter_info or {}).get("conditions") or []
+        if not conds:
+            return items[:page_size]
+        hit = []
+        for row in items:
+            fields = row.get("fields") or {}
+            for c in conds:
+                name, vals = c.get("field_name"), c.get("value") or []
+                cell = fields.get(name)
+                text = cell if isinstance(cell, str) else str(cell or "")
+                if any(v and v in text for v in vals):
+                    hit.append(row)
+                    break
+        return hit[:page_size]
+
+    def list_records(self, app_token, table_id, page_size=30):
+        self._maybe_fail("list_records")
+        items = [
+            r
+            for r in self.bitable_rows
+            if r.get("app_token", app_token) == app_token and r.get("table_id", table_id) == table_id
+        ]
+        return items[:page_size]
 
     def _maybe_fail(self, name):
         self.calls.append((name,))
@@ -102,7 +154,10 @@ class FakeProvider:
 @pytest.fixture
 def cfg():
     env = {"OPENAI_API_KEY": "k", "DASHSCOPE_API_KEY": "k", "DEEPSEEK_API_KEY": "k", "PRIVATE_LLM_KEY": "k"}
-    return load_config(ROOT / "config" / "roles.example.yaml", env=env)
+    c = load_config(ROOT / "config" / "roles.example.yaml", env=env)
+    c.first_guide_enabled = False
+    c.ack_after_seconds = 0
+    return c
 
 
 @pytest.fixture
@@ -120,8 +175,18 @@ def harness(cfg, clock):
     h.store = Store(":memory:", clock=clock)
     h.provider = FakeProvider()
     providers = {name: h.provider for name in cfg.llm.providers}
-    h.service = BotService(cfg, h.api, h.store, Extractor(providers, cfg.llm.default),
-                           BitableWriter(h.api, h.store, sleep=lambda s: None), clock=clock)
+    providers_map = providers
+    extractor = Extractor(providers_map, cfg.llm.default)
+    qsvc = QueryService(h.api, cfg, providers_map, cfg.llm.default)
+    h.service = BotService(
+        cfg,
+        h.api,
+        h.store,
+        extractor,
+        BitableWriter(h.api, h.store, sleep=lambda s: None),
+        clock=clock,
+        query_service=qsvc,
+    )
     h.clock = clock
     return h
 
@@ -129,15 +194,34 @@ def harness(cfg, clock):
 _seq = [0]
 
 
-def make_msg(text: str, *, sender="ou_alice", chat="oc_1", mentions=None, root_id="", parent_id="",
-             message_id=None, event_id=None, chat_type="group", at_bot=True, thread_id="") -> IncomingMessage:
+def make_msg(
+    text: str,
+    *,
+    sender="ou_alice",
+    chat="oc_1",
+    mentions=None,
+    root_id="",
+    parent_id="",
+    message_id=None,
+    event_id=None,
+    chat_type="group",
+    at_bot=True,
+    thread_id="",
+) -> IncomingMessage:
     _seq[0] += 1
     others = [Mention(f"@_user_{i + 2}", n, oid) for i, (n, oid) in enumerate(mentions or [])]
     ms = ([Mention("@_user_1", "记录机器人", "ou_bot")] if at_bot else []) + others
     prefix = "@_user_1 " if at_bot else ""
     return IncomingMessage(
-        event_id=event_id or f"ev{_seq[0]}", message_id=message_id or f"om_{_seq[0]}", chat_id=chat,
-        chat_type=chat_type, sender_open_id=sender, message_type="text",
+        event_id=event_id or f"ev{_seq[0]}",
+        message_id=message_id or f"om_{_seq[0]}",
+        chat_id=chat,
+        chat_type=chat_type,
+        sender_open_id=sender,
+        message_type="text",
         content=json.dumps({"text": f"{prefix}{text}"}, ensure_ascii=False),
-        mentions=ms, root_id=root_id, parent_id=parent_id, thread_id=thread_id,
+        mentions=ms,
+        root_id=root_id,
+        parent_id=parent_id,
+        thread_id=thread_id,
     )

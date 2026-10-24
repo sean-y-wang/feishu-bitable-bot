@@ -26,3 +26,23 @@
 | `BOT_WORKERS` | 处理线程数，默认 4 |
 | `LOG_LEVEL` | 日志级别，默认 INFO |
 | `OPENAI_API_KEY` 等 | 配置文件中引用的 LLM Key |
+
+
+## 角色级提示词与进展查询
+
+| 字段 | 说明 |
+|---|---|
+| `system_prompt` | 追加到抽取 system（【本角色补充指令】） |
+| `guide_prompt` | 正文过短时的引导文案；未配则按必填字段自动生成 |
+| `reply_style` | 一句话约束追问/引导/查询回复语气 |
+| `min_content_chars` | 默认 0（关闭）；设为 8–12 且正文+上下文都短于该值时发引导、不抽取、不开 session |
+| `confirm_before_write` | true 时字段齐后先预览，用户确认/改字段后再写入 |
+| `receipt_title` | 可选，覆盖成功回执标题 |
+| `queryable` | true 时允许进展查询 |
+| `query.search_fields` | 检索用的字段 key（映射到列名 contains） |
+| `query.reply_fields` | 回复里展示的字段；默认不含溯源大字段 |
+| `query.max_candidates` / `max_reply` / `fallback_limit` | 候选上限、回复条数、0 命中时拉最近 N 条再 rerank |
+
+全局：`ack_after_seconds`（LLM 超时先回「收到，正在整理…」，0=关）、`first_guide_enabled` / `first_guide_text`（每个群首次 @ 一句短引导）。
+
+查询意图：`intent.classify` 返回 `action=query`；slash 正文命中 `intent.query_hints` 也会走查询。查询不写 session、不写表。

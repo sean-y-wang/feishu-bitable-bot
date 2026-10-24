@@ -14,8 +14,13 @@ def _payload():
         "event": {
             "sender": {"sender_id": {"open_id": "ou_s"}},
             "message": {
-                "message_id": "om_1", "chat_id": "oc_1", "chat_type": "group", "message_type": "text",
-                "content": json.dumps({"text": "@_user_1 /bug x"}), "root_id": "om_0", "parent_id": "om_0",
+                "message_id": "om_1",
+                "chat_id": "oc_1",
+                "chat_type": "group",
+                "message_type": "text",
+                "content": json.dumps({"text": "@_user_1 /bug x"}),
+                "root_id": "om_0",
+                "parent_id": "om_0",
                 "create_time": "1700000000000",
                 "mentions": [{"key": "@_user_1", "name": "Bot", "id": {"open_id": "ou_bot"}}],
             },
@@ -29,8 +34,12 @@ def test_to_incoming_dict_and_objects():
     assert m.mentions[0].open_id == "ou_bot" and m.create_time_ms == 1700000000000
 
     def ns(d):
-        return SimpleNamespace(**{k: ns(v) if isinstance(v, dict) else [ns(x) for x in v] if isinstance(v, list)
-                                  else v for k, v in d.items()})
+        return SimpleNamespace(
+            **{
+                k: ns(v) if isinstance(v, dict) else [ns(x) for x in v] if isinstance(v, list) else v
+                for k, v in d.items()
+            }
+        )
 
     assert to_incoming(ns(_payload())).mentions[0].name == "Bot"
 

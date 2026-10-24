@@ -13,6 +13,7 @@ from .context import ContextCollector
 from .extractor import Extractor
 from .logging_setup import setup_logging
 from .providers.openai_compat import build_providers
+from .query import QueryService
 from .service import BotService
 from .session import Store
 from .writer import BitableWriter, LarkFeishuAPI
@@ -60,9 +61,18 @@ def build_service(settings: Settings, cfg, lark_client) -> BotService:
     providers = build_providers(cfg)
     bot_id = resolve_bot_open_id(api, settings.bot_open_id)
     collector = ContextCollector(api, cfg, applink_host=settings.applink_host, bot_open_id=bot_id)
-    return BotService(cfg, api, store, Extractor(providers, cfg.llm.default),
-                      BitableWriter(api, store, base_url=settings.web_domain), bot_open_id=bot_id,
-                      collector=collector)
+    extractor = Extractor(providers, cfg.llm.default)
+    qsvc = QueryService(api, cfg, providers, cfg.llm.default, base_url=settings.web_domain)
+    return BotService(
+        cfg,
+        api,
+        store,
+        extractor,
+        BitableWriter(api, store, base_url=settings.web_domain),
+        bot_open_id=bot_id,
+        collector=collector,
+        query_service=qsvc,
+    )
 
 
 def _sweeper(service: BotService, interval: float = 60.0) -> None:
@@ -90,13 +100,15 @@ def main() -> int:
     from .gateway import Gateway
 
     lark_client = (
-        lark.Client.builder().app_id(settings.app_id).app_secret(settings.app_secret)
-        .domain(settings.open_domain).build()
+        lark.Client.builder()
+        .app_id(settings.app_id)
+        .app_secret(settings.app_secret)
+        .domain(settings.open_domain)
+        .build()
     )
     service = build_service(settings, cfg, lark_client)
     threading.Thread(target=_sweeper, args=(service,), daemon=True, name="sweeper").start()
-    log.info("bot.starting", roles=[r.command for r in cfg.roles], db=settings.db_path,
-             bot_open_id=service.bot_open_id)
+    log.info("bot.starting", roles=[r.command for r in cfg.roles], db=settings.db_path, bot_open_id=service.bot_open_id)
     Gateway(service, settings.workers).run(settings.app_id, settings.app_secret, settings.open_domain)
     return 0
 

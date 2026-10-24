@@ -58,12 +58,19 @@ def test_render_and_recent_order(cfg, clock):
     api = FakeAPI()
     api.members = [("Bob", "ou_b")]
     c = ContextCollector(api, cfg, bot_open_id="ou_bot", clock=clock)
-    mk = lambda mid, s, t, ts: {"message_id": mid, "msg_type": "text", "create_time": str(ts),  # noqa: E731
-                                "sender": {"id": s, "sender_type": "user"},
-                                "body": {"content": json.dumps({"text": t})}}
+    mk = lambda mid, s, t, ts: {
+        "message_id": mid,
+        "msg_type": "text",
+        "create_time": str(ts),  # noqa: E731
+        "sender": {"id": s, "sender_type": "user"},
+        "body": {"content": json.dumps({"text": t})},
+    }
     m = make_msg("now")
-    api.history[("chat", "oc_1")] = [mk("o1", "ou_b", "first", 1792727000000), mk("o2", "ou_bot", "bot", 1792727100000),
-                                      mk(m.message_id, "ou_alice", "now", 1792728000000)]
+    api.history[("chat", "oc_1")] = [
+        mk("o1", "ou_b", "first", 1792727000000),
+        mk("o2", "ou_bot", "bot", 1792727100000),
+        mk(m.message_id, "ou_alice", "now", 1792728000000),
+    ]
     ctx = c.collect(m)
     assert ctx.excerpt.splitlines()[0] == "【最近的聊天消息】"
     lines = ctx.excerpt.splitlines()[1:]
@@ -97,8 +104,9 @@ class _Client:
 
     def request(self, req):
         self.reqs.append(req)
-        return SimpleNamespace(code=None, msg=None, raw=SimpleNamespace(content=json.dumps(self.body).encode(),
-                                                                         status_code=200))
+        return SimpleNamespace(
+            code=None, msg=None, raw=SimpleNamespace(content=json.dumps(self.body).encode(), status_code=200)
+        )
 
 
 def test_lark_raw_calls():

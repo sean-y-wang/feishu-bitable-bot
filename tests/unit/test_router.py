@@ -48,8 +48,9 @@ def test_clean_text_placeholder_prefix_collision():
 
 
 def test_extract_text_post():
-    content = json.dumps({"zh_cn": {"title": "T", "content": [[{"tag": "text", "text": "/bug "},
-                                                               {"tag": "a", "text": "x"}]]}})
+    content = json.dumps(
+        {"zh_cn": {"title": "T", "content": [[{"tag": "text", "text": "/bug "}, {"tag": "a", "text": "x"}]]}}
+    )
     assert extract_text("post", content) == "T\n/bug x"
     assert extract_text("text", "not json") == ""
     assert extract_text("image", "{}") == ""

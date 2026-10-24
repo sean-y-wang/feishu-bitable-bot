@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, chat_id TEXT, sender TEXT, command TEXT,
   text TEXT, provider TEXT, model TEXT, latency_ms INTEGER, fields TEXT, record_id TEXT, result TEXT
 );
+CREATE TABLE IF NOT EXISTS guided_chats (
+  chat_id TEXT PRIMARY KEY, guided_at REAL NOT NULL
+);
 """
 
 
@@ -74,8 +77,9 @@ class Store:
 
     def delete_session(self, s: Session) -> None:
         with self._lock:
-            self._db.execute("DELETE FROM sessions WHERE chat_id=? AND user_id=? AND role=?",
-                             (s.chat_id, s.user_id, s.role))
+            self._db.execute(
+                "DELETE FROM sessions WHERE chat_id=? AND user_id=? AND role=?", (s.chat_id, s.user_id, s.role)
+            )
 
     def sessions_for(self, chat_id: str, user_id: str) -> list[Session]:
         """Active (unexpired) sessions of a user in a chat."""
@@ -96,23 +100,51 @@ class Store:
     # ---- written records ---------------------------------------------
     def get_record(self, source_message_id: str) -> tuple[str, str] | None:
         with self._lock:
-            r = self._db.execute("SELECT record_id, url FROM records WHERE source_message_id=?",
-                                 (source_message_id,)).fetchone()
+            r = self._db.execute(
+                "SELECT record_id, url FROM records WHERE source_message_id=?", (source_message_id,)
+            ).fetchone()
         return (r[0], r[1]) if r else None
 
     def put_record(self, source_message_id: str, record_id: str, url: str) -> None:
         with self._lock:
-            self._db.execute("INSERT OR REPLACE INTO records VALUES (?,?,?,?)",
-                             (source_message_id, record_id, url, self.clock()))
+            self._db.execute(
+                "INSERT OR REPLACE INTO records VALUES (?,?,?,?)", (source_message_id, record_id, url, self.clock())
+            )
+
+    # ---- first-time guide per chat -----------------------------------
+    def mark_chat_guided(self, chat_id: str) -> bool:
+        """Record that this chat has been guided. Return True if this was the first time."""
+        with self._lock:
+            cur = self._db.execute(
+                "INSERT OR IGNORE INTO guided_chats(chat_id, guided_at) VALUES (?,?)",
+                (chat_id, self.clock()),
+            )
+            return cur.rowcount == 1
+
+    def is_chat_guided(self, chat_id: str) -> bool:
+        with self._lock:
+            r = self._db.execute("SELECT 1 FROM guided_chats WHERE chat_id=?", (chat_id,)).fetchone()
+        return r is not None
 
     # ---- audit -------------------------------------------------------
     def audit(self, **kw: Any) -> None:
-        cols = ["chat_id", "sender", "command", "text", "provider", "model", "latency_ms", "fields", "record_id",
-                "result"]
+        cols = [
+            "chat_id",
+            "sender",
+            "command",
+            "text",
+            "provider",
+            "model",
+            "latency_ms",
+            "fields",
+            "record_id",
+            "result",
+        ]
         vals = [kw.get(c) if c != "fields" else json.dumps(kw.get(c), ensure_ascii=False) for c in cols]
         with self._lock:
-            self._db.execute(f"INSERT INTO audit_log(ts,{','.join(cols)}) VALUES (?{',?' * len(cols)})",
-                             [self.clock(), *vals])
+            self._db.execute(
+                f"INSERT INTO audit_log(ts,{','.join(cols)}) VALUES (?{',?' * len(cols)})", [self.clock(), *vals]
+            )
 
     def audit_rows(self) -> list[dict[str, Any]]:
         with self._lock:

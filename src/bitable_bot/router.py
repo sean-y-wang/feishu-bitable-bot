@@ -69,8 +69,9 @@ def bot_mentioned(mentions: list[Mention], text: str, bot_open_id: str | None) -
     return any(text.strip().startswith(m.key) for m in mentions)
 
 
-def clean_text(text: str, mentions: list[Mention], bot_open_id: str | None,
-               strip_leading: bool = True) -> tuple[str, dict[str, str]]:
+def clean_text(
+    text: str, mentions: list[Mention], bot_open_id: str | None, strip_leading: bool = True
+) -> tuple[str, dict[str, str]]:
     """Remove the bot mention(s); render other mentions as @name. Returns (text, {name: open_id})."""
     people: dict[str, str] = {}
     text = text.strip()
@@ -115,7 +116,7 @@ def route(text: str, cfg: AppConfig) -> Route:
     candidates += [(c, r) for r in cfg.roles for c in r.commands]
     for cmd, role in sorted(candidates, key=lambda x: -len(x[0])):
         if t == cmd or t.startswith(cmd) and (t[len(cmd)].isspace() or not cmd[1:].isascii()):
-            body = t[len(cmd):].strip()
+            body = t[len(cmd) :].strip()
             if cmd in HELP_COMMANDS:
                 return Route(Kind.HELP, body, command=cmd)
             if cmd in CANCEL_COMMANDS:

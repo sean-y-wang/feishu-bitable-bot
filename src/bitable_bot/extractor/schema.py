@@ -66,9 +66,7 @@ def describe_fields(role: Role) -> str:
         if f.description:
             parts.append(f"说明：{f.description}")
         if f.options:
-            opts = "；".join(
-                o.value + (f"（同义：{'、'.join(o.synonyms)}）" if o.synonyms else "") for o in f.options
-            )
+            opts = "；".join(o.value + (f"（同义：{'、'.join(o.synonyms)}）" if o.synonyms else "") for o in f.options)
             parts.append(f"可选值：{opts}")
         if f.type == "number" and (f.min is not None or f.max is not None):
             parts.append(f"范围：{f.min if f.min is not None else '-∞'}~{f.max if f.max is not None else '∞'}")

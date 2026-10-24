@@ -54,6 +54,10 @@ def build_messages(
         role_name=role.name,
         fields=describe_fields(role),
     )
+    if role.system_prompt:
+        system += "\n\n【本角色补充指令】\n" + role.system_prompt.strip()
+    if role.reply_style:
+        system += "\n【回复风格】" + role.reply_style.strip()
     ctx_lines = [f"发送者：{sender_name or '未知'}"]
     if mentions:
         ctx_lines.append("消息中 @ 的人员（姓名 → open_id）：" + json.dumps(mentions, ensure_ascii=False))

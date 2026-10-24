@@ -55,8 +55,9 @@ class WriteResult:
 
 
 class BitableWriter:
-    def __init__(self, api: FeishuAPI, store, max_retries: int = 3, sleep=time.sleep,
-                 base_url: str = "https://feishu.cn") -> None:
+    def __init__(
+        self, api: FeishuAPI, store, max_retries: int = 3, sleep=time.sleep, base_url: str = "https://feishu.cn"
+    ) -> None:
         self.api = api
         self.store = store
         self.max_retries = max_retries

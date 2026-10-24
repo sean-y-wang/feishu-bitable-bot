@@ -21,8 +21,17 @@ from .writer.feishu_api import FeishuAPI, FeishuAPIError
 
 log = structlog.get_logger(__name__)
 
-_PLACEHOLDER = {"image": "[图片]", "file": "[文件]", "audio": "[语音]", "media": "[视频]", "sticker": "[表情]",
-                "interactive": "[卡片]", "share_chat": "[群名片]", "share_user": "[个人名片]", "merge_forward": "[合并转发]"}
+_PLACEHOLDER = {
+    "image": "[图片]",
+    "file": "[文件]",
+    "audio": "[语音]",
+    "media": "[视频]",
+    "sticker": "[表情]",
+    "interactive": "[卡片]",
+    "share_chat": "[群名片]",
+    "share_user": "[个人名片]",
+    "merge_forward": "[合并转发]",
+}
 
 
 @dataclass
@@ -49,8 +58,13 @@ def build_message_link(item: dict[str, Any], chat_id: str, host: str) -> str:
     chat = item.get("chat_id") or chat_id
     thread_id, tpos, mpos = item.get("thread_id"), item.get("thread_message_position"), item.get("message_position")
     if thread_id and chat and tpos is not None:
-        q = {"openthreadid": thread_id, "openchatid": chat, "open_thread_id": thread_id, "open_chat_id": chat,
-             "thread_position": str(tpos)}
+        q = {
+            "openthreadid": thread_id,
+            "openchatid": chat,
+            "open_thread_id": thread_id,
+            "open_chat_id": chat,
+            "thread_position": str(tpos),
+        }
         return f"https://{host}/client/thread/open?{urlencode(q)}"
     if chat and mpos is not None:
         return f"https://{host}/client/chat/open?{urlencode({'openChatId': chat, 'position': str(mpos)})}"
@@ -58,8 +72,14 @@ def build_message_link(item: dict[str, Any], chat_id: str, host: str) -> str:
 
 
 class ContextCollector:
-    def __init__(self, api: FeishuAPI, cfg: AppConfig, applink_host: str = "applink.feishu.cn",
-                 bot_open_id: str | None = None, clock=time.time) -> None:
+    def __init__(
+        self,
+        api: FeishuAPI,
+        cfg: AppConfig,
+        applink_host: str = "applink.feishu.cn",
+        bot_open_id: str | None = None,
+        clock=time.time,
+    ) -> None:
         self.api = api
         self.cfg = cfg
         self.host = applink_host
@@ -152,9 +172,10 @@ class ContextCollector:
 
     def collect(self, msg: IncomingMessage) -> ConversationContext:
         cc = self.cfg.context
-        ctx = ConversationContext(sender_name=self.resolve_name(msg.sender_open_id, msg.chat_id
-                                                                if msg.chat_type != "p2p" else ""),
-                                  chat_name=self.chat_name(msg))
+        ctx = ConversationContext(
+            sender_name=self.resolve_name(msg.sender_open_id, msg.chat_id if msg.chat_type != "p2p" else ""),
+            chat_name=self.chat_name(msg),
+        )
         current: dict[str, Any] = {}
         try:
             current = self.api.get_message(msg.message_id)

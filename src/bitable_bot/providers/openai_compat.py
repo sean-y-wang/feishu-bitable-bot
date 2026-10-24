@@ -15,8 +15,9 @@ log = structlog.get_logger(__name__)
 
 
 class OpenAICompatibleProvider:
-    def __init__(self, name: str, cfg: ProviderConfig, client: Any = None, max_attempts: int = 3,
-                 sleep=time.sleep) -> None:
+    def __init__(
+        self, name: str, cfg: ProviderConfig, client: Any = None, max_attempts: int = 3, sleep=time.sleep
+    ) -> None:
         self.name = name
         self.model = cfg.model
         self.cfg = cfg
@@ -26,14 +27,15 @@ class OpenAICompatibleProvider:
         if client is None:
             from openai import OpenAI
 
-            client = OpenAI(base_url=cfg.base_url, api_key=cfg.api_key or "EMPTY", timeout=cfg.timeout,
-                            max_retries=0)
+            client = OpenAI(base_url=cfg.base_url, api_key=cfg.api_key or "EMPTY", timeout=cfg.timeout, max_retries=0)
         self.client = client
 
     def _formats(self, schema: dict[str, Any]) -> list[dict[str, Any] | None]:
         fmts: list[dict[str, Any] | None] = []
         if self.supports_json_schema:
-            fmts.append({"type": "json_schema", "json_schema": {"name": "extraction", "strict": True, "schema": schema}})
+            fmts.append(
+                {"type": "json_schema", "json_schema": {"name": "extraction", "strict": True, "schema": schema}}
+            )
         fmts += [{"type": "json_object"}, None]
         return fmts
 
@@ -52,8 +54,13 @@ class OpenAICompatibleProvider:
                 resp = self.client.chat.completions.create(**kwargs)
                 content = resp.choices[0].message.content or ""
                 usage = getattr(resp, "usage", None)
-                log.info("llm.ok", provider=self.name, model=self.model, ms=int((time.monotonic() - t0) * 1000),
-                         tokens=getattr(usage, "total_tokens", None))
+                log.info(
+                    "llm.ok",
+                    provider=self.name,
+                    model=self.model,
+                    ms=int((time.monotonic() - t0) * 1000),
+                    tokens=getattr(usage, "total_tokens", None),
+                )
                 return content
             except BadRequestError as e:
                 # response_format unsupported -> degrade (json_schema -> json_object -> prompt only)

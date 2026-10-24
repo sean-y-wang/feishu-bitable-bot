@@ -16,9 +16,13 @@ def intent(role, conf=0.9):
 
 
 def item(mid, sender, text, ts_ms, sender_type="user"):
-    return {"message_id": mid, "msg_type": "text", "create_time": str(ts_ms),
-            "sender": {"id": sender, "sender_type": sender_type},
-            "body": {"content": json.dumps({"text": text}, ensure_ascii=False)}}
+    return {
+        "message_id": mid,
+        "msg_type": "text",
+        "create_time": str(ts_ms),
+        "sender": {"id": sender, "sender_type": sender_type},
+        "body": {"content": json.dumps({"text": text}, ensure_ascii=False)},
+    }
 
 
 T0 = int(NOW * 1000)
@@ -28,12 +32,16 @@ def test_plain_mention_high_confidence_writes(harness):
     h = harness
     h.api.users = {"ou_alice": "Alice"}
     h.api.chat_names = {"oc_1": "研发群"}
-    h.provider.outputs = [intent("/bug", 0.92), out(title="登录页白屏", severity="P1", owner=None, due=None,
-                                                    proposer=None)]
+    h.provider.outputs = [
+        intent("/bug", 0.92),
+        out(title="登录页白屏", severity="P1", owner=None, due=None, proposer=None),
+    ]
     m = make_msg("登录页白屏了，P1")
     h.api.messages[m.message_id] = {"message_id": m.message_id, "message_position": "42"}
-    h.api.history[("chat", "oc_1")] = [item("om_x1", "ou_bob", "生产环境登录页打不开", T0 - 60000),
-                                       item(m.message_id, "ou_alice", "@_user_1 登录页白屏了，P1", T0)]
+    h.api.history[("chat", "oc_1")] = [
+        item("om_x1", "ou_bob", "生产环境登录页打不开", T0 - 60000),
+        item(m.message_id, "ou_alice", "@_user_1 登录页白屏了，P1", T0),
+    ]
     h.api.members = [("Bob", "ou_bob")]
     h.service.handle(m)
     f = h.api.records[0]["fields"]
@@ -54,8 +62,10 @@ def test_plain_mention_high_confidence_writes(harness):
 
 def test_low_confidence_asks_then_yes(harness):
     h = harness
-    h.provider.outputs = [intent("/bug", 0.4), out(title="支付超时", severity="P2", owner=None, due=None,
-                                                   proposer=None)]
+    h.provider.outputs = [
+        intent("/bug", 0.4),
+        out(title="支付超时", severity="P2", owner=None, due=None, proposer=None),
+    ]
     m = make_msg("支付偶尔超时")
     h.service.handle(m)
     ask = h.api.replies[-1]
@@ -69,8 +79,7 @@ def test_low_confidence_asks_then_yes(harness):
 
 def test_unknown_role_pick_by_name(harness):
     h = harness
-    h.provider.outputs = [intent(None, 0), out(done="写接口", plan=None, status=None, hours=None, tags=None,
-                                               link=None)]
+    h.provider.outputs = [intent(None, 0), out(done="写接口", plan=None, status=None, hours=None, tags=None, link=None)]
     m = make_msg("今天写接口")
     h.service.handle(m)
     assert "我不确定要记录到哪张表" in h.api.replies[-1]["text"]
@@ -150,8 +159,14 @@ def test_bot_open_id_mention_detection(harness):
 
 def test_context_api_failures_degrade(harness):
     h = harness
-    h.api.fail = {"get_message", "list_messages:chat", "list_messages:thread", "get_user_name", "get_chat_name",
-                  "list_chat_members"}
+    h.api.fail = {
+        "get_message",
+        "list_messages:chat",
+        "list_messages:thread",
+        "get_user_name",
+        "get_chat_name",
+        "list_chat_members",
+    }
     h.provider.outputs = [out(title="t", severity="P2", owner=None, due=None, proposer=None)]
     h.service.handle(make_msg("/bug t", parent_id="om_parent", thread_id="omt_1"))
     f = h.api.records[0]["fields"]
@@ -164,8 +179,10 @@ def test_parent_and_thread_context(harness):
     h = harness
     h.api.members = [("Bob", "ou_bob")]
     h.api.messages["om_parent"] = item("om_parent", "ou_bob", "首页加载要 8 秒", T0 - 5000)
-    h.api.history[("thread", "omt_1")] = [item("om_parent", "ou_bob", "首页加载要 8 秒", T0 - 5000),
-                                          item("om_t2", "cli_bot", "收到", T0 - 4000, sender_type="app")]
+    h.api.history[("thread", "omt_1")] = [
+        item("om_parent", "ou_bob", "首页加载要 8 秒", T0 - 5000),
+        item("om_t2", "cli_bot", "收到", T0 - 4000, sender_type="app"),
+    ]
     h.service.cfg.context.recent_messages = 0
     h.provider.outputs = [out(title="首页慢", severity="P2", owner=None, due=None, proposer=None)]
     h.service.handle(make_msg("/bug 记一下", parent_id="om_parent", thread_id="omt_1"))

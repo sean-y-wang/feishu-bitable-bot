@@ -12,6 +12,9 @@ session: { timeout_minutes: 30, max_followups: 2 }
 chats_allowlist: []          # empty = all chats allowed
 audit_store_text: true       # false = do not store original text in audit_log
 p2p_enabled: true            # private chat: any message triggers the bot, no @ needed
+ack_after_seconds: 2         # LLM 超过此时长先回「收到，正在整理…」；0=关闭
+first_guide_enabled: true
+first_guide_text: "提示：直接说需求即可，不必打命令。例如「AIHub 货架页加个导出，挺急」。"
 
 # Without a slash command the LLM picks the role. Below min_confidence the bot asks the user to confirm.
 intent:
@@ -70,7 +73,23 @@ roles:
 
   - command: /bug
     name: 缺陷登记
-    description: 报告 bug、线上问题、报错、故障
+    description: 报告 bug、线上问题、报错、故障；也可查询已有缺陷进展
+    confirm_before_write: false
+    queryable: true
+    query:
+      search_fields: [title]
+      reply_fields: [title, severity, owner, due]
+      max_candidates: 20
+      max_reply: 3
+      fallback_limit: 30
+    min_content_chars: 0   # tests use short bodies; production roles set 8–12
+    system_prompt: |
+      你在帮研发登记缺陷。优先抽出：标题、严重程度、负责人、截止日期。
+      用户只说「记一下」而无实质内容时对应字段填 null，不要编造。
+    guide_prompt: |
+      想登记缺陷的话，请尽量说清：标题、严重程度（P0–P3）、负责人（可选）。
+      例：@我 /bug 登录页白屏，P1，负责人 @张三
+    reply_style: 简洁、条目化，少客套
     target: { app_token: bascnYYYY, table_id: tblYYYY }
     fields:
       - { key: title, field: 标题, type: text, required: true, max_len: 100 }

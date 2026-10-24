@@ -25,14 +25,17 @@ roles:
 """
 
 
-@pytest.mark.parametrize("roles", [
-    "  - {command: /a, name: A, target: {app_token: t, table_id: t}, fields: []}\n"
-    "  - {command: /a, name: B, target: {app_token: t, table_id: t}, fields: []}\n",
-    "  - {command: /help, name: A, target: {app_token: t, table_id: t}, fields: []}\n",
-    "  - {command: nope, name: A, target: {app_token: t, table_id: t}, fields: []}\n",
-    "  - {command: /a, name: A, target: {app_token: t, table_id: t}, fields: [{key: s, field: S, type: single_select}]}\n",
-    "  - {command: /a, name: A, llm: zz, target: {app_token: t, table_id: t}, fields: []}\n",
-])
+@pytest.mark.parametrize(
+    "roles",
+    [
+        "  - {command: /a, name: A, target: {app_token: t, table_id: t}, fields: []}\n"
+        "  - {command: /a, name: B, target: {app_token: t, table_id: t}, fields: []}\n",
+        "  - {command: /help, name: A, target: {app_token: t, table_id: t}, fields: []}\n",
+        "  - {command: nope, name: A, target: {app_token: t, table_id: t}, fields: []}\n",
+        "  - {command: /a, name: A, target: {app_token: t, table_id: t}, fields: [{key: s, field: S, type: single_select}]}\n",
+        "  - {command: /a, name: A, llm: zz, target: {app_token: t, table_id: t}, fields: []}\n",
+    ],
+)
 def test_invalid_configs(tmp_path, roles):
     with pytest.raises(ConfigError):
         load_config(_write(tmp_path, BASE + roles), env={})

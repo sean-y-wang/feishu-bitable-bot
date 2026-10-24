@@ -99,12 +99,18 @@ def test_lark_api_wrapper():
         calls["reply"] = req
         return _Resp(data=SimpleNamespace(message_id="om_r"))
 
-    pages = [SimpleNamespace(items=[SimpleNamespace(name="A", member_id="ou_a")], has_more=True, page_token="p2"),
-             SimpleNamespace(items=[SimpleNamespace(name="B", member_id="ou_b")], has_more=False, page_token="")]
+    pages = [
+        SimpleNamespace(items=[SimpleNamespace(name="A", member_id="ou_a")], has_more=True, page_token="p2"),
+        SimpleNamespace(items=[SimpleNamespace(name="B", member_id="ou_b")], has_more=False, page_token=""),
+    ]
     client = SimpleNamespace(
         bitable=SimpleNamespace(v1=SimpleNamespace(app_table_record=SimpleNamespace(create=create))),
-        im=SimpleNamespace(v1=SimpleNamespace(message=SimpleNamespace(reply=reply),
-                                              chat_members=SimpleNamespace(get=lambda r: _Resp(data=pages.pop(0))))),
+        im=SimpleNamespace(
+            v1=SimpleNamespace(
+                message=SimpleNamespace(reply=reply),
+                chat_members=SimpleNamespace(get=lambda r: _Resp(data=pages.pop(0))),
+            )
+        ),
     )
     api = LarkFeishuAPI(client)
     assert api.create_record("app", "tbl", {"标题": "x"}, "tok") == "recX"
@@ -112,8 +118,13 @@ def test_lark_api_wrapper():
     assert api.reply_text("om_1", "你好", in_thread=True) == "om_r"
     assert '"你好"' in calls["reply"].request_body.content and calls["reply"].request_body.reply_in_thread
     assert api.list_chat_members("oc") == [("A", "ou_a"), ("B", "ou_b")]
-    bad = SimpleNamespace(bitable=SimpleNamespace(v1=SimpleNamespace(app_table_record=SimpleNamespace(
-        create=lambda r: _Resp(ok=False, code=91403, msg="no perm")))))
+    bad = SimpleNamespace(
+        bitable=SimpleNamespace(
+            v1=SimpleNamespace(
+                app_table_record=SimpleNamespace(create=lambda r: _Resp(ok=False, code=91403, msg="no perm"))
+            )
+        )
+    )
     with pytest.raises(FeishuAPIError) as ei:
         LarkFeishuAPI(bad).create_record("a", "t", {}, "x")
     assert ei.value.code == 91403 and ei.value.http_status == 400

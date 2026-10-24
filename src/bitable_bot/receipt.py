@@ -1,0 +1,96 @@
+"""Success / preview / duplicate receipts: interactive card with structured-text fallback."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from .config.models import FieldSpec, Role
+from .service_fmt import fmt_value
+
+_HIDDEN = frozenset({"$context", "$raw_text"})
+
+
+def visible_specs(role: Role, values: dict[str, Any] | None = None) -> list[FieldSpec]:
+    out = []
+    for spec in role.fields:
+        if isinstance(spec.default, str) and spec.default in _HIDDEN:
+            continue
+        if values is not None and spec.key not in values:
+            continue
+        out.append(spec)
+    return out
+
+
+def preview_lines(role: Role, values: dict[str, Any], people: dict[str, str], tz: str) -> list[str]:
+    lines = [f"请确认写入「{role.name}」："]
+    for spec in visible_specs(role, values):
+        lines.append(f"• {spec.field}：{fmt_value(spec, values[spec.key], people, tz)}")
+    lines.append("回复「确认 / 好 / 是 / ok」写入；可直接改字段，如「优先级改成 P0」或「标题：xxx」；/取消 放弃。")
+    return lines
+
+
+def success_text(
+    role: Role, values: dict[str, Any], people: dict[str, str], tz: str, url: str, duplicated: bool = False
+) -> str:
+    title = role.receipt_title or (
+        f"🔁 这条消息已记录过「{role.name}」" if duplicated else f"✅ 已记录到「{role.name}」"
+    )
+    if duplicated and role.receipt_title:
+        title = f"🔁 {role.receipt_title}"
+    lines = [title]
+    for spec in visible_specs(role, values):
+        lines.append(f"{spec.field}：{fmt_value(spec, values[spec.key], people, tz)}")
+    if url:
+        lines.append(url)
+    return "\n".join(lines)
+
+
+def success_card(
+    role: Role, values: dict[str, Any], people: dict[str, str], tz: str, url: str, duplicated: bool = False
+) -> dict[str, Any]:
+    title = role.receipt_title or (f"这条消息已记录过「{role.name}」" if duplicated else f"已记录到「{role.name}」")
+    prefix = "🔁 " if duplicated else "✅ "
+    fields = []
+    for spec in visible_specs(role, values):
+        v = fmt_value(spec, values[spec.key], people, tz)
+        fields.append({"is_short": True, "text": {"tag": "lark_md", "content": f"**{spec.field}**\n{v}"}})
+    elements: list[dict[str, Any]] = []
+    if fields:
+        # Feishu cards prefer groups of up to 5 short fields
+        for i in range(0, len(fields), 5):
+            elements.append({"tag": "div", "fields": fields[i : i + 5]})
+    if url:
+        elements.append(
+            {
+                "tag": "action",
+                "actions": [
+                    {
+                        "tag": "button",
+                        "text": {"tag": "plain_text", "content": "打开记录"},
+                        "type": "primary",
+                        "url": url,
+                    }
+                ],
+            }
+        )
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": prefix + title},
+            "template": "orange" if duplicated else "green",
+        },
+        "elements": elements or [{"tag": "div", "text": {"tag": "plain_text", "content": url or title}}],
+    }
+
+
+def followup_text(role: Role, missing: dict[str, str], optional_empty: list[FieldSpec]) -> str:
+    lines = [f"还需要补充以下必填信息才能记录到「{role.name}」（直接在此话题回复即可）："]
+    for spec in role.fields:
+        if spec.key in missing:
+            hint = missing[spec.key] or spec.description or ""
+            lines.append(f"• {spec.field}" + (f"（{hint}）" if hint else ""))
+    if optional_empty:
+        names = "、".join(f.field for f in optional_empty[:6])
+        lines.append(f"选填（{names}）可不填；若不想补充请回复「跳过」。")
+    lines.append("/取消 可放弃。")
+    return "\n".join(lines)

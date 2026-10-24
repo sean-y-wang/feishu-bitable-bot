@@ -34,17 +34,16 @@ class Gateway:
     def build_handler(self):
         import lark_oapi as lark
 
-        return (
-            lark.EventDispatcherHandler.builder("", "")
-            .register_p2_im_message_receive_v1(self.on_message)
-            .build()
-        )
+        return lark.EventDispatcherHandler.builder("", "").register_p2_im_message_receive_v1(self.on_message).build()
 
     def run(self, app_id: str, app_secret: str, domain: str, log_level: Any = None) -> None:
         import lark_oapi as lark
 
         client = lark.ws.Client(
-            app_id, app_secret, event_handler=self.build_handler(), domain=domain,
+            app_id,
+            app_secret,
+            event_handler=self.build_handler(),
+            domain=domain,
             log_level=log_level or lark.LogLevel.INFO,
         )
         client.start()  # blocks, auto-reconnects

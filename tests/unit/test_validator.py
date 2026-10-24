@@ -12,8 +12,9 @@ DAY_1023 = 1792684800000  # 2026-10-23 00:00 Asia/Shanghai, ms
 
 
 def ctx(**kw):
-    base = dict(sender_open_id="ou_me", now=datetime.fromtimestamp(NOW, UTC), sender_name="我",
-                mentions={"张三": "ou_z"})
+    base = dict(
+        sender_open_id="ou_me", now=datetime.fromtimestamp(NOW, UTC), sender_name="我", mentions={"张三": "ou_z"}
+    )
     base.update(kw)
     return Context(**base)
 
@@ -22,14 +23,26 @@ def spec(type_, **kw):
     return FieldSpec(key="k", field="F", type=type_, **kw)
 
 
-STATUS = [Option(value="正常", synonyms=["顺利", "ok"]), Option(value="延期", synonyms=["delay"]),
-          Option(value="阻塞", synonyms=["卡住", "blocked"])]
+STATUS = [
+    Option(value="正常", synonyms=["顺利", "ok"]),
+    Option(value="延期", synonyms=["delay"]),
+    Option(value="阻塞", synonyms=["卡住", "blocked"]),
+]
 
 
-@pytest.mark.parametrize("raw,expected", [
-    ("正常", "正常"), ("顺利", "正常"), ("OK", "正常"), ("ＯＫ", "正常"), ("Delay", "延期"),
-    ("blockd", "阻塞"), ("完全不相关", None), ("", None),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("正常", "正常"),
+        ("顺利", "正常"),
+        ("OK", "正常"),
+        ("ＯＫ", "正常"),
+        ("Delay", "延期"),
+        ("blockd", "阻塞"),
+        ("完全不相关", None),
+        ("", None),
+    ],
+)
 def test_match_option(raw, expected):
     assert match_option(raw, STATUS) == expected
 
@@ -39,10 +52,23 @@ def test_match_option_ambiguous_fuzzy():
     assert match_option("ab3", opts) is None
 
 
-@pytest.mark.parametrize("raw,expected", [
-    (3.5, 3.5), ("3.5h", 3.5), ("三点五", 3.5), ("八", 8), ("十二", 12), ("两个半", 2.5), ("3个半小时", 3.5),
-    ("1,024", 1024), ("负一", -1), ("三十五", 35), ("一百零五", 105), ("一万二千", 12000),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (3.5, 3.5),
+        ("3.5h", 3.5),
+        ("三点五", 3.5),
+        ("八", 8),
+        ("十二", 12),
+        ("两个半", 2.5),
+        ("3个半小时", 3.5),
+        ("1,024", 1024),
+        ("负一", -1),
+        ("三十五", 35),
+        ("一百零五", 105),
+        ("一万二千", 12000),
+    ],
+)
 def test_number(raw, expected):
     assert normalize_value(spec("number"), raw, ctx()) == expected
 
@@ -59,11 +85,19 @@ def test_number_range_precision():
             normalize_value(s, bad, ctx())
 
 
-@pytest.mark.parametrize("raw,expected", [
-    ("2026-10-23", DAY_1023), ("2026年10月23日", DAY_1023), ("2026/10/23", DAY_1023),
-    ("今天", DAY_1023), ("昨天", DAY_1023 - 86400000), ("明天", DAY_1023 + 86400000),
-    (DAY_1023, DAY_1023), (DAY_1023 // 1000, DAY_1023),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("2026-10-23", DAY_1023),
+        ("2026年10月23日", DAY_1023),
+        ("2026/10/23", DAY_1023),
+        ("今天", DAY_1023),
+        ("昨天", DAY_1023 - 86400000),
+        ("明天", DAY_1023 + 86400000),
+        (DAY_1023, DAY_1023),
+        (DAY_1023 // 1000, DAY_1023),
+    ],
+)
 def test_date(raw, expected):
     assert normalize_value(spec("date"), raw, ctx()) == expected
 
@@ -91,8 +125,10 @@ def test_user_resolution():
 def test_text_url_phone_checkbox_select():
     assert normalize_value(spec("text", max_len=3), "  abcdef ", ctx()) == "abc"
     assert normalize_value(spec("text"), ["a", "b"], ctx()) == "a\nb"
-    assert normalize_value(spec("url"), "example.com/x", ctx()) == {"text": "https://example.com/x",
-                                                                    "link": "https://example.com/x"}
+    assert normalize_value(spec("url"), "example.com/x", ctx()) == {
+        "text": "https://example.com/x",
+        "link": "https://example.com/x",
+    }
     assert normalize_value(spec("url"), {"link": "http://a.b"}, ctx())["link"] == "http://a.b"
     with pytest.raises(Missing):
         normalize_value(spec("url"), "javascript:alert(1)", ctx())

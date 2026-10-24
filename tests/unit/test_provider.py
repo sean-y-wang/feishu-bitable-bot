@@ -16,8 +16,9 @@ def _status(code, cls=APIStatusError):
 
 
 def _ok(text):
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
-                           usage=SimpleNamespace(total_tokens=10))
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=text))], usage=SimpleNamespace(total_tokens=10)
+    )
 
 
 class FakeClient:
