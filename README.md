@@ -64,6 +64,7 @@ Works over Feishu’s **WebSocket long connection** — deploy on a laptop or in
 - **Chat→field bindings**: pin project/direction by Feishu `chat_id`
 - **Remote business config table**: prompts in a Bitable; secrets stay in `.env`; YAML fallback
 - **LLM fallback**: same-provider `fallback_models` + cross-provider `llm.fallback`
+- **Built-in runtime dashboard**: same process; overview, one-click business-config reload, system config editing, masked secrets
 - **Deterministic validation** — numbers, selects (synonyms / edit distance), relative dates, users, URLs
 - **Idempotent writes** — event/message dedup + Feishu `client_token` (UUIDv4)
 - **Hardened Docker** — non-root, read-only rootfs, credentials only from env
@@ -172,7 +173,9 @@ Details: [docs/en/configuration.md](docs/en/configuration.md).
 
 ## Runtime dashboard
 
-The bot process ships an internal dashboard (default `127.0.0.1:8787`, requires `DASHBOARD_TOKEN`): runtime overview, business-config load status with one-click hot reload, editable system config (LLM fallback/timeouts…), masked secrets with overwrite. See [docs/en/dashboard.md](docs/en/dashboard.md).
+The bot process ships an internal dashboard (default `127.0.0.1:8787`, requires `DASHBOARD_TOKEN`): runtime overview, business-config load status with one-click hot reload, editable system config (LLM fallback/timeouts…), masked secrets with overwrite. See [docs/en/dashboard.md](docs/en/dashboard.md). Business config lives in the Feishu config table; system config and secrets live in the dashboard.
+
+Release notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 

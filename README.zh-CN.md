@@ -65,6 +65,7 @@
 - **群→字段绑定**：按群固定写入「所属项目」等方向字段
 - **远程业务配置表**：prompt / 引导文案进多维表格，密钥仍走 `.env`；失败回退 YAML
 - **LLM 降级**：`fallback_models`（同 provider）+ `llm.fallback`（跨 provider）
+- **内置运行看板**：与机器人同进程部署；运行概况、业务配置一键热重载、系统配置在线修改、密钥打码
 - **OpenAI 兼容 LLM**：OpenAI / 通义 / DeepSeek / Kimi / 智谱 / vLLM / Ollama…
 - **确定性校验**：数字、单选/多选（同义词、编辑距离）、相对日期、人员、链接
 - **幂等写入**：事件/消息去重 + Feishu `client_token`（UUIDv4）
@@ -177,7 +178,9 @@ feishu-bitable-bot/
 
 ## 运行看板
 
-机器人进程内置一个内网看板（默认 `127.0.0.1:8787`，需设置 `DASHBOARD_TOKEN`）：运行概况、业务配置加载状态与一键热重载、系统配置（LLM 降级/超时等）在线修改、密钥打码展示与覆盖。详见 [docs/zh-CN/dashboard.md](docs/zh-CN/dashboard.md)。
+机器人进程内置一个内网看板（默认 `127.0.0.1:8787`，需设置 `DASHBOARD_TOKEN`）：运行概况、业务配置加载状态与一键热重载、系统配置（LLM 降级/超时等）在线修改、密钥打码展示与覆盖。详见 [docs/zh-CN/dashboard.md](docs/zh-CN/dashboard.md)。业务配置在飞书「机器人配置」表维护，系统配置与密钥在看板维护。
+
+版本更新记录见 [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)。
 
 ## 开发
 

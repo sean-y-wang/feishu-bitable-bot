@@ -166,3 +166,15 @@ def test_http_auth_and_no_plaintext(rt):
         assert code == 200 and json.loads(body)["ok"]
     finally:
         srv.stop()
+
+
+def test_base_url_is_restart_only(rt):
+    with pytest.raises(ConfigError, match="restart-only"):
+        rt.update_system({"llm": {"providers": {"main": {"base_url": "https://evil.example/v1"}}}})
+    # unchanged value is tolerated (UI may echo it back)
+    out = rt.update_system({"llm": {"providers": {"main": {"base_url": "https://a.example/v1", "timeout": 12}}}})
+    assert "llm.providers.main.timeout" in out["changed"]
+    assert not any(k.endswith("base_url") for k in out["changed"])
+    from bitable_bot.dashboard.runtime import HOT_RELOAD
+    assert not any("base_url" in x and "只读" not in x for x in HOT_RELOAD["hot"])
+    assert any("base_url" in x for x in HOT_RELOAD["restart"])

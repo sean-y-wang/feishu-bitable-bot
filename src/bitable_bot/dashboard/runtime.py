@@ -362,7 +362,11 @@ class Runtime:
             if name not in raw["llm"].get("providers", {}):
                 raise ConfigError(f"unknown provider {name!r}")
             tgt = raw["llm"]["providers"][name]
-            for k, cast in (("model", str), ("base_url", str), ("timeout", float)):
+            if p.get("base_url") not in (None, "") and str(p["base_url"]) != str(tgt.get("base_url", "")):
+                raise ConfigError(
+                    f"llm.providers.{name}.base_url is restart-only; edit config/roles.yaml and restart"
+                )
+            for k, cast in (("model", str), ("timeout", float)):
                 if k in p and p[k] not in (None, ""):
                     tgt[k] = cast(p[k])
                     changed.append(f"llm.providers.{name}.{k}")
@@ -448,7 +452,7 @@ def write_env_file(path: Path, values: dict[str, str]) -> None:
 HOT_RELOAD = {
     "hot": [
         "业务配置（飞书「机器人配置」表：prompt / 引导文案 / 群绑定 / 字段说明）",
-        "LLM 主模型、降级顺序、模型名、base_url、超时",
+        "LLM 主模型、降级顺序、模型名、超时（base_url 只读，需改 roles.yaml 并重启）",
         "LLM 密钥（*_API_KEY）",
         "会话超时、意图置信度阈值、上下文条数",
         "自动刷新间隔 refresh_seconds（下一轮生效）",
@@ -457,6 +461,7 @@ HOT_RELOAD = {
         "飞书 App ID / App Secret / FEISHU_DOMAIN（需重启进程以重连长连接）",
         "看板 DASHBOARD_HOST / DASHBOARD_PORT / DASHBOARD_TOKEN",
         "BOT_CONFIG / BOT_SCENARIO / BOT_DB_PATH / BOT_WORKERS / LOG_LEVEL",
+        "LLM 供应商 base_url（看板只读；改 config/roles.yaml 后重启）",
         "角色结构（多维表格目标 app_token / table_id、字段定义）建议重启",
     ],
 }

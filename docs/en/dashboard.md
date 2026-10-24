@@ -31,8 +31,16 @@ Every change is appended to `data/dashboard_audit.log` (key names only).
 
 ## Hot vs restart
 
-Hot: business table, LLM default/fallback/models/timeouts, LLM API keys, session/intent/context knobs. Restart: Feishu App ID/Secret/domain, `DASHBOARD_*`, `BOT_CONFIG`/`BOT_SCENARIO`/`BOT_DB_PATH`/`BOT_WORKERS`/`LOG_LEVEL`, role structure (recommended).
+Hot: business table, LLM default/fallback/models/timeouts, LLM API keys, session/intent/context knobs. Restart: Feishu App ID/Secret/domain, `DASHBOARD_*`, `BOT_CONFIG`/`BOT_SCENARIO`/`BOT_DB_PATH`/`BOT_WORKERS`/`LOG_LEVEL`, role structure (recommended), and each provider's `base_url` (read-only in the dashboard; edits are rejected — change `roles.yaml` and restart).
 
 ## Deploy
 
 `docker-compose.yml` maps `127.0.0.1:8787:8787` (container listens on `0.0.0.0`); change to `"<LAN IP>:8787:8787"` for office access. `./config` and `./.env` are mounted writable so the dashboard can save.
+
+Running Python directly (e.g. on a Mac mini without Docker): load `.env` first (`set -a; . ./.env; set +a`), set `DASHBOARD_HOST=<Mac mini LAN IP>` for office access (avoid `0.0.0.0`), use a long `DASHBOARD_TOKEN`, and point `BOT_DB_PATH` at a writable path (e.g. `data/bot.db`).
+
+## Caveats
+
+- Saving system config **rewrites** `roles.yaml`: comments/formatting are lost; the previous file is kept as `roles.yaml.bak`. Use `config/roles.example.yaml` as the commented reference.
+- The LLM fallback chain (e.g. spark → qwen → deepseek) only works once the fallback keys (`DASHSCOPE_API_KEY`, `DEEPSEEK_API_KEY`, …) are filled in; set them in the dashboard's secrets panel (hot).
+- Secrets are only ever shown masked; the API never returns plaintext.
