@@ -74,7 +74,7 @@ function render(o,s){$('botname').textContent=o.bot_name;
   ['自动刷新',o.remote_config.refresh_seconds?o.remote_config.refresh_seconds+' 秒':'关闭']]);
  if(!s){renderErr(o);return}
  $('llm_default').value=s.llm.default;$('llm_fallback').value=s.llm.fallback.join(', ');
- $('prov').tBodies[0].innerHTML=Object.entries(s.llm.providers).map(([n,p])=>`<tr data-n="${esc(n)}"><td>${esc(n)}<div class="muted">${esc(p.base_url)}</div></td>
+ $('prov').tBodies[0].innerHTML=Object.entries(s.llm.providers).map(([n,p])=>`<tr data-n="${esc(n)}"><td>${esc(n)}<div class="muted" title="只读：改 roles.yaml 后重启生效">${esc(p.base_url)} · 只读/重启生效</div></td>
   <td><input data-k="model" value="${esc(p.model)}"></td><td><input data-k="fallback_models" value="${esc(p.fallback_models.join(', '))}"></td>
   <td><input data-k="timeout" value="${esc(p.timeout)}" style="width:60px"></td><td><code>${esc(p.api_key_masked||'未设置')}</code><div class="muted">${esc(p.api_key_env||'')}</div></td></tr>`).join('');
  $('session_timeout').value=s.session.timeout_minutes;$('intent_conf').value=s.intent.min_confidence;$('ctx_recent').value=s.context.recent_messages;

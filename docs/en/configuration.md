@@ -86,6 +86,8 @@ llm:
 
 Same-provider `fallback_models` first, then cross-provider `llm.fallback`. Logs: `llm.fallback`.
 
+> Fallback providers need their keys in `.env` (e.g. `DASHSCOPE_API_KEY`, `DEEPSEEK_API_KEY`) or they are skipped. Changing `base_url` requires a restart; it is read-only in the dashboard.
+
 ## Roles
 
 Each entry under `roles[]`:

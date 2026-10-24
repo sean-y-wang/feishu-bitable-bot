@@ -130,6 +130,8 @@ llm:
 
 顺序：当前 provider 内 `fallback_models` → 再按 `llm.fallback` 换 provider。日志事件：`llm.fallback`。
 
+> 降级 provider 必须在 `.env` 中配置对应密钥（如 `DASHSCOPE_API_KEY`、`DEEPSEEK_API_KEY`），否则会被跳过。`base_url` 修改需重启，看板中只读。
+
 ## 角色 `roles[]`
 
 | 字段 | 说明 |

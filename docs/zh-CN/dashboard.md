@@ -40,6 +40,7 @@ DASHBOARD_PORT=8787
 | LLM 主模型、降级顺序、模型名、超时 | `DASHBOARD_*` |
 | LLM 密钥（`*_API_KEY`） | `BOT_CONFIG` / `BOT_SCENARIO` / `BOT_DB_PATH` / `BOT_WORKERS` / `LOG_LEVEL` |
 | 会话超时、置信度阈值、上下文条数、刷新间隔 | 角色结构（目标表、字段定义）建议重启 |
+|  | LLM provider 的 `base_url`（看板只读，提交修改会被拒绝；改 `roles.yaml` 后重启） |
 
 飞书长连接断线时 SDK 会自动重连，看板实时显示 `connected / reconnecting / disconnected`。
 
@@ -47,4 +48,10 @@ DASHBOARD_PORT=8787
 
 `docker-compose.yml` 已映射 `127.0.0.1:8787:8787`，容器内 `DASHBOARD_HOST=0.0.0.0`。办公室内网访问时把映射改成 `"<Mac mini 内网 IP>:8787:8787"`。为了让看板能保存配置，compose 以可写方式挂载 `./config` 和 `./.env`。
 
-直接跑 Python（`python -m bitable_bot`）时，记得先加载 `.env`（`set -a; . ./.env; set +a`）。
+直接跑 Python（`python -m bitable_bot`）时，记得先加载 `.env`（`set -a; . ./.env; set +a`）。Mac mini 非 Docker 部署要在内网访问时，设置 `DASHBOARD_HOST=<Mac mini 内网 IP>`（不建议 `0.0.0.0`），并确保 `DASHBOARD_TOKEN` 足够长；`BOT_DB_PATH` 需指向进程可写的路径（如仓库内 `data/bot.db`）。
+
+## 注意事项
+
+- 看板保存系统配置会**重写** `roles.yaml`：YAML 注释和排版不保留，旧文件备份为 `roles.yaml.bak`。需要注释请以 `config/roles.example.yaml` 为参考。
+- LLM 降级链（如 spark → qwen → deepseek）只有在对应密钥（`DASHSCOPE_API_KEY`、`DEEPSEEK_API_KEY` 等）填写后才会真正生效；可在看板「密钥」区填写，热生效。
+- 密钥在看板和 API 中只显示打码值，不返回明文。

@@ -1,0 +1,31 @@
+# 更新日志
+
+本项目的重要变更记录于此，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。[English](CHANGELOG.md)
+
+## [未发布]
+
+### 修复
+- 看板：LLM provider 的 `base_url` 改为只读 / 需重启。此前被错误列为可热修改；现在通过 API 修改会被拒绝，界面标注「只读/重启生效」。
+
+### 文档
+- 新增本更新日志（中英双语）；补充 Mac mini 内网绑定（`DASHBOARD_HOST=<内网 IP>`）、热生效与需重启项、看板保存会丢失 `roles.yaml` 注释（保留 `.bak`）、降级 provider 需填写密钥等说明。
+
+## 2026-10 — 内置运行看板（#7）
+
+### 新增
+- 与机器人同进程的看板（标准库 `http.server`，Token 鉴权，默认 `127.0.0.1:8787`）：运行概况、飞书连接状态、业务配置加载状态与一键热重载、系统配置在线修改（LLM 主模型/降级/模型/超时、会话/意图/上下文参数）、密钥打码展示与覆盖（不返回明文）、审计日志 `data/dashboard_audit.log`。
+- 新增环境变量 `DASHBOARD_TOKEN` / `DASHBOARD_HOST` / `DASHBOARD_PORT` / `BOT_ENV_FILE`。
+
+## 2026-10 — 群绑定、远程业务配置、LLM 降级（#6）
+
+### 新增
+- `chat_field_bindings`：群聊与多维表格字段值固定关联（如需求方向/项目）。
+- `remote_config`：业务角色配置（提示词、引导文案、群绑定、字段说明）从飞书多维表格读取，定时刷新，失败回退本地 YAML；密钥仍只在 `.env`。
+- LLM 降级 `ChainedProvider`：先同厂商 `fallback_models`，再按 `llm.fallback` 切换 provider。
+- 配置文档更新，满足上线使用。
+
+## 2026-10 — 需求小助手交互优化（#5）
+
+### 变更
+- 帮助引导 + 收集 / 咨询两类意图；快速规则 + 三分类 LLM（帮助/记录/查询）及置信度阈值。
+- 15 分钟会话超时，确认 / 修改 / 取消流程更顺畅。
