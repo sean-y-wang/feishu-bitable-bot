@@ -40,6 +40,7 @@ class FakeAPI:
         self.calls: list[tuple] = []
         self.bitable_rows: list[dict] = []  # for search/list records
         self.cards_ok = False  # False → reply_card raises → text fallback
+        self.reactions: list[tuple] = []
 
     def create_record(self, app_token, table_id, fields, client_token):
         if self.create_errors:
@@ -133,6 +134,11 @@ class FakeAPI:
     def get_chat_name(self, chat_id):
         self._maybe_fail("get_chat_name")
         return self.chat_names.get(chat_id, "")
+
+    def add_reaction(self, message_id, emoji_type="Get"):
+        self._maybe_fail("add_reaction")
+        self.reactions.append((message_id, emoji_type))
+        self.calls.append(("add_reaction", message_id, emoji_type))
 
 
 class FakeProvider:

@@ -21,6 +21,7 @@
 | `im:message:readonly` or `im:message.history:readonly` | Read history / quoted messages / message position | Recommended |
 | `im:chat:readonly` | Chat name (`$chat_name`) and member display names | Recommended |
 | `contact:contact.base:readonly` + `contact:user.base:readonly` | Directory name for `$sender_name` | Optional |
+| `im:message.reaction` (or reaction-related scope) | 「收到」emoji on @ (`react_on_mention`) | Recommended for Requirements Assistant |
 
 Notes:
 
@@ -35,7 +36,7 @@ Bot `open_id` is auto-fetched via `GET /open-apis/bot/v3/info` (no extra scope).
 1. Start this service once so the long connection is online.
 2. **Events & callbacks** → **Event configuration** → **Receive events via long connection**.
 3. Add event **`im.message.receive_v1`** (Receive message).
-4. Card callback `card.action.trigger` is reserved for richer P1 card actions; not required for the current MVP receipt card.
+4. Card callback `card.action.trigger` on the long connection (required for Confirm / Cancel / Modify buttons; text fallback still works).
 
 ## 4. Publish
 

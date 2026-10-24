@@ -126,6 +126,18 @@ def route(text: str, cfg: AppConfig) -> Route:
 
 
 def help_text(cfg: AppConfig, chat_id: str | None = None) -> str:
+    name = cfg.display_name()
+    if cfg.dedicated and cfg.roles:
+        r = cfg.roles[0]
+        lines = [
+            f"我是{name}，支持两件事：",
+            "1）信息收集 — 直接 @我说需求，我会在话题里用卡片请你确认后写入",
+            "2）进展咨询 — 问「XX 上线了吗 / 查一下 XX」，最多回 2 条最相关记录",
+        ]
+        if cfg.query_docs_hint:
+            lines.append(f"   （{cfg.query_docs_hint}）")
+        lines.append(f"也可用命令 {r.command} …；/取消 放弃未完成的记录；/help 查看本帮助。")
+        return "\n".join(lines)
     lines = ["可用命令（@我 + 命令 + 内容）："]
     for r in cfg.roles:
         if chat_id and r.allowed_chats and chat_id not in r.allowed_chats:

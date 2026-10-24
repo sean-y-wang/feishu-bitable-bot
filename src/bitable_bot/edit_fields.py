@@ -9,6 +9,7 @@ from .config.models import FieldSpec, Role
 
 _SKIP = frozenset({"跳过", "skip", "略过", "不用了", "暂无", "先跳过"})
 _YES = frozenset({"是", "对", "确认", "好", "好的", "嗯", "y", "yes", "ok", "是的", "对的", "没错", "可以", "行"})
+_CANCEL = frozenset({"取消", "不要了", "算了", "放弃", "cancel", "no", "否"})
 
 # 「优先级改成 P0」/「标题改为 xxx」/「标题：xxx」/「标题: xxx」
 _EDIT_RE = re.compile(
@@ -23,6 +24,10 @@ def is_yes(text: str) -> bool:
 
 def is_skip(text: str) -> bool:
     return text.strip().strip("。.!！~").lower() in _SKIP
+
+
+def is_cancel(text: str) -> bool:
+    return text.strip().strip("。.!！~").lower() in _CANCEL
 
 
 def _match_spec(role: Role, name: str) -> FieldSpec | None:

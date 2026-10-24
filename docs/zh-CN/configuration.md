@@ -13,16 +13,45 @@
 | `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 必填，应用凭证 |
 | `FEISHU_DOMAIN` | `feishu`（默认）或 `lark` |
 | `FEISHU_BOT_OPEN_ID` | 可选；精确去掉 @机器人 |
-| `BOT_CONFIG` | `roles.yaml` 路径（默认 `config/roles.yaml`；镜像内 `/app/config/roles.yaml`） |
+| `BOT_SCENARIO` | 内置场景：`requirements` → 加载 `config/roles.requirements.yaml`（需求小助手） |
+| `BOT_CONFIG` | 自定义 `roles.yaml` 路径（若设置则覆盖 `BOT_SCENARIO`） |
 | `BOT_DB_PATH` | SQLite 路径（默认 `data/bot.db`；镜像内 `/data/bot.db`） |
 | `BOT_WORKERS` | 处理线程数，默认 `4` |
 | `LOG_LEVEL` | 默认 `INFO` |
 | `OPENAI_API_KEY` / `DASHSCOPE_API_KEY` / … | YAML 中引用的 LLM Key |
 
+
+## 内置场景：需求小助手
+
+推荐用专属机器人应用部署「需求小助手」，避免多场景意图路由：
+
+```bash
+cp config/roles.requirements.yaml config/roles.yaml
+# .env
+BOT_SCENARIO=requirements
+```
+
+该配置启用：
+
+| 项 | 值 |
+|---|---|
+| `scenario` / `dedicated` / `bot_name` | `requirements` / `true` / `需求小助手` |
+| `react_on_mention` / `react_emoji` | `true` / `Get`（「收到」） |
+| `context.recent_messages` | `5`（@ 时取前文最多 5 条） |
+| `confirm_before_write` | `true`（话题内交互卡片：确认 / 取消 / 修改） |
+| `query.max_reply` + `query_docs_hint` | `2` + 引导用户自行查表 |
+
+意图只有两种：`record`（信息收集）与 `query`（进展咨询）。通用多角色见 `config/roles.example.yaml`。
+
 ## `roles.yaml` 全局项
 
 | 键 | 说明 |
 |---|---|
+| `scenario` | 场景 id，如 `requirements` |
+| `dedicated` | `true` 时必须恰好一个角色；跳过角色选择 |
+| `bot_name` | 显示名（帮助文案 / 回执） |
+| `react_on_mention` / `react_emoji` | @ 后点表情；失败静默忽略 |
+| `query_docs_hint` | 查询有结果时追加的「请自行查表」提示 |
 | `timezone` | 如 `Asia/Shanghai`，影响相对日期与 `$today` / `$now` |
 | `llm.default` / `llm.providers.*` | OpenAI 兼容 provider（`base_url`、`api_key`、`model`、`supports_json_schema`、`timeout`） |
 | `session.timeout_minutes` / `max_followups` | 追问超时与最多轮次 |

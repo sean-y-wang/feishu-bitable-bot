@@ -1,9 +1,11 @@
 """Business pipeline.
 
 trigger (@bot in group / any p2p message / reply in an open follow-up thread)
+→ optional emoji reaction (dedicated bots)
 → route (slash = explicit role; otherwise LLM intent with action=record|query)
+→ dedicated mode: single role, only record|query (no role picking)
 → short-content guide / progress query / extract → validate
-→ follow-up / confirm-before-write / write → receipt → audit.
+→ follow-up / confirm-before-write (interactive card) / write → receipt → audit.
 """
 
 from __future__ import annotations
@@ -17,11 +19,11 @@ import structlog
 
 from .config.models import AppConfig, Role
 from .context import ContextCollector, ConversationContext
-from .edit_fields import is_skip, is_yes, parse_edits
+from .edit_fields import is_cancel, is_skip, is_yes, parse_edits
 from .extractor import ExtractionError, Extractor, build_messages, classify
 from .extractor.intent import looks_like_query
 from .query import QueryService
-from .receipt import followup_text, preview_lines, success_card, success_text
+from .receipt import confirm_card, followup_text, preview_lines, success_card, success_text
 from .router import IncomingMessage, Kind, bot_mentioned, clean_text, extract_text, help_text, route
 from .session import Session, Store
 from .validator import Context, validate
@@ -31,6 +33,7 @@ log = structlog.get_logger(__name__)
 
 PICK = "__pick__"
 PHASE_CONFIRM = "confirm"
+PHASE_MODIFY = "modify"  # waiting for free-text field edits after card 「修改」
 PHASE_GUIDE = "guide"  # unused for session (guide does not open a session)
 _HIDDEN_IN_RECEIPT = {"$context", "$raw_text"}
 
@@ -122,6 +125,9 @@ class BotService:
             self._reply(msg.message_id, "抱歉，本群未开通记录功能，请联系管理员。")
             return
         text, people = clean_text(raw, msg.mentions, self.bot_open_id, strip_leading=not p2p)
+        # Fresh @ / p2p (not a thread follow-up): optional 「收到」reaction
+        if addressed and thread_s is None and self.cfg.react_on_mention:
+            self._react(msg.message_id)
         r = route(text, self.cfg)
         if r.kind is Kind.HELP:
             self._maybe_first_guide(msg)
@@ -149,6 +155,8 @@ class BotService:
                 self._continue_pick(msg, s, text, people)
             elif s.raw_fields.get("__phase__") == PHASE_CONFIRM:
                 self._continue_confirm(msg, s, text, people)
+            elif s.raw_fields.get("__phase__") == PHASE_MODIFY:
+                self._continue_modify(msg, s, text, people)
             else:
                 # follow-up / confirm answers never branch into query
                 self._continue_followup(msg, s, text, people)
@@ -167,6 +175,10 @@ class BotService:
         if not roles:
             self._reply(msg.message_id, "抱歉，你在这里没有可用的记录角色。")
             return
+        # Dedicated single-role bot (e.g. 需求小助手): fixed role, only record|query.
+        dedicated_role = self.cfg.primary_role() if self.cfg.dedicated else None
+        if dedicated_role is not None and dedicated_role in roles:
+            roles = [dedicated_role]
         conv = self.collector.collect(msg)
         if not text and not conv.excerpt:
             # try single queryable/record role guide, else help
@@ -177,12 +189,22 @@ class BotService:
             return
         provider = self.extractor.providers[self.cfg.intent.llm or self.extractor.default]
         intent = classify(provider, self.cfg, roles, text, conv.excerpt)
+        # Force the dedicated role onto the intent when present.
+        if dedicated_role is not None:
+            intent.role = dedicated_role
+            if intent.action not in ("record", "query"):
+                # Heuristic fallback when LLM returns null action
+                intent.action = "query" if looks_like_query(text, self.cfg.intent.query_hints) else "record"
+                intent.confidence = max(intent.confidence, 0.8)
+            else:
+                intent.confidence = max(intent.confidence, self.cfg.intent.min_confidence)
         log.info(
             "intent.result",
             action=intent.action,
             role=intent.role.command if intent.role else None,
             confidence=intent.confidence,
             reason=intent.reason,
+            dedicated=bool(dedicated_role),
         )
 
         if intent.action == "query":
@@ -191,6 +213,10 @@ class BotService:
 
         if intent.role is not None and intent.confidence >= self.cfg.intent.min_confidence:
             self._start(msg, intent.role, text, people, raw_text=text, conv=conv)
+            return
+        # Dedicated bot never opens a role-pick session.
+        if dedicated_role is not None:
+            self._start(msg, dedicated_role, text, people, raw_text=text, conv=conv)
             return
         s = Session(
             chat_id=msg.chat_id,
@@ -344,6 +370,8 @@ class BotService:
             fields={"hits": hits},
             result=result,
         )
+        if hits and self.cfg.query_docs_hint:
+            text = text.rstrip() + "\n" + self.cfg.query_docs_hint
         self._reply(reply_to, text)
 
     # ------------------------------------------------------------------ extraction flow
@@ -408,6 +436,10 @@ class BotService:
         role = self.cfg.find_role(s.role)
         if role is None:
             self.store.delete_session(s)
+            return
+        if is_cancel(text):
+            self.store.delete_session(s)
+            self._reply(s.source_message_id, "已取消，未写入。", thread=True)
             return
         if is_yes(text):
             s.raw_fields["__confirmed__"] = True
@@ -605,8 +637,19 @@ class BotService:
         for k, v in values.items():
             s.raw_fields[k] = v
         s.expires_at = self.clock() + self.cfg.session.timeout_minutes * 60
-        lines = preview_lines(role, values, people, tz)
-        ask_id = self._reply(reply_to, "\n".join(lines), thread=True)
+        card = confirm_card(
+            role,
+            values,
+            people,
+            tz,
+            chat_id=s.chat_id,
+            user_id=s.user_id,
+            source_message_id=s.source_message_id,
+        )
+        ask_id = self._reply_card(reply_to, card, thread=True)
+        if not ask_id:
+            lines = preview_lines(role, values, people, tz)
+            ask_id = self._reply(reply_to, "\n".join(lines), thread=True)
         if ask_id:
             s.ask_message_ids.append(ask_id)
         self.store.save_session(s)
@@ -667,6 +710,99 @@ class BotService:
         self._reply(reply_to, f"🔁 这条消息已记录过「{role.name}」\n{url}")
 
     # ------------------------------------------------------------------ misc
+
+    def _continue_modify(self, msg: IncomingMessage, s: Session, text: str, people: dict[str, str]) -> None:
+        """After card 「修改」: accept field edits or free text, then re-preview."""
+        role = self.cfg.find_role(s.role)
+        if role is None:
+            self.store.delete_session(s)
+            return
+        if is_cancel(text):
+            self.store.delete_session(s)
+            self._reply(s.source_message_id, "已取消，未写入。", thread=True)
+            return
+        if not text:
+            self._reply(msg.message_id, "请直接回复要改的字段，例如「优先级改成 P0」或「标题：xxx」。", thread=True)
+            return
+        edits = parse_edits(role, text)
+        if edits:
+            for k, v in edits.items():
+                s.raw_fields[k] = v
+            s.raw_fields.pop("__confirmed__", None)
+            s.raw_fields["__phase__"] = PHASE_CONFIRM
+            self._process(msg, role, s, people, skip_extract=True, force_preview=True)
+            return
+        # free-text: re-extract with follow-up then preview
+        s.followups.append(text)
+        s.raw_fields.pop("__confirmed__", None)
+        s.raw_fields["__phase__"] = PHASE_CONFIRM
+        self._process(msg, role, s, people, force_preview=True)
+
+    def _react(self, message_id: str) -> None:
+        try:
+            self.api.add_reaction(message_id, self.cfg.react_emoji or "Get")
+        except Exception as e:
+            log.info("react.skipped", error=str(e)[:200])
+
+    def handle_card_action(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Handle interactive card button (confirm / cancel / modify). Returns toast/card update dict.
+
+        ``payload`` shape (from Feishu card.action.trigger)::
+            {operator: {open_id}, action: {value: {...}}, context: {open_message_id, open_chat_id}}
+        """
+        action = (payload.get("action") or {}) if isinstance(payload, dict) else {}
+        value = action.get("value") if isinstance(action, dict) else None
+        if not isinstance(value, dict) or value.get("kind") != "confirm":
+            return {"toast": {"type": "info", "content": "未知操作"}}
+        op = value.get("action")
+        chat_id = str(value.get("chat_id") or "")
+        user_id = str(value.get("user_id") or "")
+        role_cmd = str(value.get("role") or "")
+        source = str(value.get("source") or "")
+        operator = ((payload.get("operator") or {}) if isinstance(payload, dict) else {}).get("open_id") or ""
+        if operator and user_id and operator != user_id:
+            return {"toast": {"type": "error", "content": "只有发起确认的人可以操作此卡片"}}
+        s = self.store.get_session(chat_id, user_id, role_cmd)
+        if s is None or s.source_message_id != source:
+            return {"toast": {"type": "info", "content": "确认已过期或已处理"}}
+        role = self.cfg.find_role(s.role)
+        if role is None:
+            self.store.delete_session(s)
+            return {"toast": {"type": "error", "content": "角色已失效"}}
+
+        # Build a synthetic message so we can reuse _process / write helpers
+        msg = IncomingMessage(
+            event_id=f"card:{source}:{op}",
+            message_id=source,
+            chat_id=chat_id,
+            chat_type="group",
+            sender_open_id=user_id,
+            message_type="text",
+            content='{"text":""}',
+        )
+        people = s.raw_fields.get("__people__") or {}
+
+        if op == "cancel":
+            self.store.delete_session(s)
+            self._reply(source, "已取消，未写入。", thread=True)
+            return {"toast": {"type": "info", "content": "已取消"}}
+        if op == "modify":
+            s.raw_fields["__phase__"] = PHASE_MODIFY
+            s.expires_at = self.clock() + self.cfg.session.timeout_minutes * 60
+            self.store.save_session(s)
+            self._reply(
+                source,
+                "请在本话题里回复要修改的内容，例如「优先级改成 P0」或「标题：新标题」。改完后我会再次请你确认。/取消 放弃。",
+                thread=True,
+            )
+            return {"toast": {"type": "info", "content": "请在话题里回复修改"}}
+        if op == "confirm":
+            s.raw_fields["__confirmed__"] = True
+            # Avoid treating card event as a duplicate of the original @ message
+            self._process(msg, role, s, people, skip_extract=True)
+            return {"toast": {"type": "success", "content": "已确认写入"}}
+        return {"toast": {"type": "info", "content": f"未知动作 {op}"}}
+
     def expire_sessions(self) -> int:
         expired = self.store.pop_expired_sessions()
         for s in expired:
@@ -682,10 +818,9 @@ class BotService:
             log.error("reply.failed", code=e.code, msg=e.msg)
             return None
 
-    def _reply_card(self, message_id: str, card: dict[str, Any], thread: bool = False) -> bool:
+    def _reply_card(self, message_id: str, card: dict[str, Any], thread: bool = False) -> str | None:
         try:
-            self.api.reply_card(message_id, card, in_thread=thread)
-            return True
+            return self.api.reply_card(message_id, card, in_thread=thread)
         except Exception as e:
             log.info("reply.card_fallback", error=str(e)[:200])
-            return False
+            return None

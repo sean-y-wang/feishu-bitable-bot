@@ -8,7 +8,9 @@
 git clone https://github.com/sean-y-wang/feishu-bitable-bot.git
 cd feishu-bitable-bot
 cp .env.example .env
-cp config/roles.example.yaml config/roles.yaml
+# Recommended: Requirements Assistant
+cp config/roles.requirements.yaml config/roles.yaml
+# Or multi-role: cp config/roles.example.yaml config/roles.yaml
 ```
 
 Edit `.env`:
@@ -18,6 +20,7 @@ Edit `.env`:
 | `FEISHU_APP_ID` | yes | From Feishu Open Platform → Credentials |
 | `FEISHU_APP_SECRET` | yes | Same page; never commit |
 | `FEISHU_DOMAIN` | no | `feishu` (default) or `lark` |
+| `BOT_SCENARIO` | no | set to `requirements` for the built-in assistant |
 | `OPENAI_API_KEY` / `DASHSCOPE_API_KEY` / … | one of them | Must match `${…}` references in `roles.yaml` |
 
 Edit `config/roles.yaml`: replace placeholder `bascnXXXX` / `tblXXXX` with your Bitable `app_token` / `table_id`, and align `field` names with column titles in the table.
