@@ -1,0 +1,17 @@
+services:
+  bot:
+    build: .
+    image: feishu-bitable-bot:latest
+    restart: unless-stopped
+    env_file: .env            # credentials only via environment
+    volumes:
+      - ./config/roles.yaml:/app/config/roles.yaml:ro
+      - bot-data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    # single instance: with long connections only one client per app receives each event
+    deploy: { replicas: 1 }
+volumes:
+  bot-data:
