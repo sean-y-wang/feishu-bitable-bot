@@ -15,6 +15,7 @@ input{font-size:13px;padding:4px 6px;border:1px solid #d0d3d6;border-radius:4px;
 button{font-size:13px;padding:6px 12px;border-radius:4px;border:1px solid #3370ff;background:#3370ff;color:#fff;cursor:pointer}
 button.ghost{background:#fff;color:#3370ff}.muted{color:#8f959e;font-size:12px}#msg{font-size:13px}
 ul{margin:4px 0;padding-left:18px;font-size:13px}code{background:#f2f3f5;padding:0 4px;border-radius:3px}
+.wide{grid-column:span 2}@media(max-width:900px){.wide{grid-column:auto}}th{white-space:nowrap}
 #login{max-width:360px;margin:80px auto}
 </style></head><body>
 <header><h1>运行看板 · <span id="botname">—</span></h1><span id="ws"></span><span style="flex:1"></span>
@@ -26,7 +27,7 @@ ul{margin:4px 0;padding-left:18px;font-size:13px}code{background:#f2f3f5;padding
 <section class="card"><h2>运行概况</h2><div class="stats" id="stats"></div><div class="kv" id="ov"></div></section>
 <section class="card"><h2>业务配置（飞书「机器人配置」表）</h2><div class="kv" id="biz"></div>
 <p class="muted">在飞书表格里改完 prompt / 引导文案 / 群绑定后，点右上角「重新加载业务配置」即热生效；失败会保留旧配置。</p></section>
-<section class="card"><h2>系统配置 · 大模型</h2><div class="kv">
+<section class="card wide"><h2>系统配置 · 大模型</h2><div class="kv">
 <div>主模型 provider</div><div><input id="llm_default"></div>
 <div>降级顺序</div><div><input id="llm_fallback" placeholder="qwen, deepseek"></div></div>
 <table id="prov"><thead><tr><th>provider</th><th>model</th><th>同厂商降级</th><th>超时(s)</th><th>密钥</th></tr></thead><tbody></tbody></table>
