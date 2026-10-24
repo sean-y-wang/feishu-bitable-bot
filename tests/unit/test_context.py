@@ -58,13 +58,14 @@ def test_render_and_recent_order(cfg, clock):
     api = FakeAPI()
     api.members = [("Bob", "ou_b")]
     c = ContextCollector(api, cfg, bot_open_id="ou_bot", clock=clock)
-    mk = lambda mid, s, t, ts: {
-        "message_id": mid,
-        "msg_type": "text",
-        "create_time": str(ts),  # noqa: E731
-        "sender": {"id": s, "sender_type": "user"},
-        "body": {"content": json.dumps({"text": t})},
-    }
+    def mk(mid, s, t, ts):
+        return {
+            "message_id": mid,
+            "msg_type": "text",
+            "create_time": str(ts),
+            "sender": {"id": s, "sender_type": "user"},
+            "body": {"content": json.dumps({"text": t})},
+        }
     m = make_msg("now")
     api.history[("chat", "oc_1")] = [
         mk("o1", "ou_b", "first", 1792727000000),
