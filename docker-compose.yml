@@ -4,8 +4,15 @@ services:
     image: feishu-bitable-bot:latest
     restart: unless-stopped
     env_file: .env            # credentials only via environment
+    environment:
+      DASHBOARD_HOST: 0.0.0.0   # inside the container; host-side exposure is limited below
+    ports:
+      # 运行看板: bound to the host loopback by default. For LAN access use e.g. "192.168.1.10:8787:8787".
+      - "127.0.0.1:8787:8787"
     volumes:
-      - ./config/roles.yaml:/app/config/roles.yaml:ro
+      # writable so the dashboard can save system config (roles.yaml + .bak) and secrets (.env)
+      - ./config:/app/config
+      - ./.env:/app/.env
       - bot-data:/data
     read_only: true
     tmpfs: [/tmp]

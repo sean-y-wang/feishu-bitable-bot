@@ -12,7 +12,7 @@ from .config import ConfigError, load_config
 from .config.remote import apply_remote_config
 from .context import ContextCollector
 from .extractor import Extractor
-from .logging_setup import setup_logging
+from .logging_setup import add_log_hook, setup_logging
 from .providers.openai_compat import build_providers
 from .query import QueryService
 from .service import BotService
@@ -108,6 +108,31 @@ def _sweeper(service: BotService, interval: float = 60.0) -> None:
             log.exception("sweeper.failed")
 
 
+def start_dashboard(settings: Settings, service: BotService, env: dict[str, str]):
+    """Start the in-process dashboard + business-config auto refresh. Returns Runtime (or None)."""
+    import logging
+
+    from .dashboard import DashboardServer, Runtime, dashboard_settings
+
+    runtime = Runtime(settings, service, service.cfg, env_path=env.get("BOT_ENV_FILE", ".env"))
+    add_log_hook(runtime.structlog_processor)
+    logging.getLogger("Lark").addHandler(runtime.ws_log_handler())
+    runtime.start_auto_refresh()
+    try:
+        ds = dashboard_settings(env)
+    except ValueError as e:
+        log.error("dashboard.disabled", reason=str(e))
+        return runtime
+    if ds is None:
+        log.info("dashboard.disabled", reason="DASHBOARD_TOKEN not set")
+        return runtime
+    try:
+        DashboardServer(runtime, ds["host"], ds["port"], ds["token"]).start()
+    except OSError as e:
+        log.error("dashboard.bind_failed", host=ds["host"], port=ds["port"], error=str(e))
+    return runtime
+
+
 def main() -> int:
     try:
         settings = Settings(dict(os.environ))
@@ -129,6 +154,7 @@ def main() -> int:
     )
     service = build_service(settings, cfg, lark_client)
     threading.Thread(target=_sweeper, args=(service,), daemon=True, name="sweeper").start()
+    start_dashboard(settings, service, dict(os.environ))
     log.info(
         "bot.starting",
         scenario=cfg.scenario,

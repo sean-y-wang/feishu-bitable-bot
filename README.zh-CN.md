@@ -175,6 +175,10 @@ feishu-bitable-bot/
 
 详见 [docs/zh-CN/configuration.md](docs/zh-CN/configuration.md)。
 
+## 运行看板
+
+机器人进程内置一个内网看板（默认 `127.0.0.1:8787`，需设置 `DASHBOARD_TOKEN`）：运行概况、业务配置加载状态与一键热重载、系统配置（LLM 降级/超时等）在线修改、密钥打码展示与覆盖。详见 [docs/zh-CN/dashboard.md](docs/zh-CN/dashboard.md)。
+
 ## 开发
 
 ```bash

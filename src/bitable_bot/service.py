@@ -240,6 +240,7 @@ class BotService:
         )
 
         if intent.action == "help":
+            log.info("help.reply")
             self._reply(msg.message_id, help_text(self.cfg, msg.chat_id))
             return
 

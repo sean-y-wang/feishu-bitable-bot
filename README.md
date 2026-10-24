@@ -170,6 +170,10 @@ Secrets stay in `.env` (never commit). Role templates live in `config/roles.yaml
 
 Details: [docs/en/configuration.md](docs/en/configuration.md).
 
+## Runtime dashboard
+
+The bot process ships an internal dashboard (default `127.0.0.1:8787`, requires `DASHBOARD_TOKEN`): runtime overview, business-config load status with one-click hot reload, editable system config (LLM fallback/timeouts…), masked secrets with overwrite. See [docs/en/dashboard.md](docs/en/dashboard.md).
+
 ## Development
 
 ```bash

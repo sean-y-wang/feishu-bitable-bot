@@ -17,6 +17,20 @@ def _redact(_, __, event_dict):
     return event_dict
 
 
+_HOOKS: list = []
+
+
+def add_log_hook(fn) -> None:
+    """Register a processor (e.g. dashboard stats) that sees every already-redacted event."""
+    _HOOKS.append(fn)
+
+
+def _run_hooks(logger, method, event_dict):
+    for fn in list(_HOOKS):
+        event_dict = fn(logger, method, event_dict)
+    return event_dict
+
+
 def setup_logging(level: str = "INFO") -> None:
     logging.basicConfig(level=level.upper(), format="%(message)s")
     structlog.configure(
@@ -25,6 +39,7 @@ def setup_logging(level: str = "INFO") -> None:
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
             _redact,
+            _run_hooks,
             structlog.processors.format_exc_info,
             structlog.processors.JSONRenderer(ensure_ascii=False),
         ],

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>运行看板</title>
+<style>
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f5f6f8;color:#1f2329}
+header{background:#fff;border-bottom:1px solid #e5e6eb;padding:12px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:18px;margin:0}main{padding:16px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #e5e6eb;border-radius:8px;padding:16px}.card h2{font-size:15px;margin:0 0 12px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13px}.kv div:nth-child(odd){color:#646a73}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}.stat{background:#f2f3f5;border-radius:6px;padding:8px 12px;min-width:80px}
+.stat b{display:block;font-size:20px}.stat span{font-size:12px;color:#646a73}
+.ok{color:#34a853}.bad{color:#d93025}.warn{color:#e37318}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid #eee;padding:5px;text-align:left}
+input{font-size:13px;padding:4px 6px;border:1px solid #d0d3d6;border-radius:4px;width:100%;box-sizing:border-box}
+button{font-size:13px;padding:6px 12px;border-radius:4px;border:1px solid #3370ff;background:#3370ff;color:#fff;cursor:pointer}
+button.ghost{background:#fff;color:#3370ff}.muted{color:#8f959e;font-size:12px}#msg{font-size:13px}
+ul{margin:4px 0;padding-left:18px;font-size:13px}code{background:#f2f3f5;padding:0 4px;border-radius:3px}
+.wide{grid-column:span 2}@media(max-width:900px){.wide{grid-column:auto}}th{white-space:nowrap}
+#login{max-width:360px;margin:80px auto}
+</style></head><body>
+<header><h1>运行看板 · <span id="botname">—</span></h1><span id="ws"></span><span style="flex:1"></span>
+<span id="msg"></span><button class="ghost" onclick="load()">刷新</button><button onclick="reloadCfg()">重新加载业务配置</button></header>
+<div id="login" class="card" style="display:none"><h2>输入看板口令</h2>
+<input id="tok" type="password" placeholder="DASHBOARD_TOKEN"><p><button onclick="saveTok()">进入</button></p>
+<p class="muted">口令仅保存在当前浏览器标签页（sessionStorage）。</p></div>
+<main id="app" style="display:none">
+<section class="card"><h2>运行概况</h2><div class="stats" id="stats"></div><div class="kv" id="ov"></div></section>
+<section class="card"><h2>业务配置（飞书「机器人配置」表）</h2><div class="kv" id="biz"></div>
+<p class="muted">在飞书表格里改完 prompt / 引导文案 / 群绑定后，点右上角「重新加载业务配置」即热生效；失败会保留旧配置。</p></section>
+<section class="card wide"><h2>系统配置 · 大模型</h2><div class="kv">
+<div>主模型 provider</div><div><input id="llm_default"></div>
+<div>降级顺序</div><div><input id="llm_fallback" placeholder="qwen, deepseek"></div></div>
+<table id="prov"><thead><tr><th>provider</th><th>model</th><th>同厂商降级</th><th>超时(s)</th><th>密钥</th></tr></thead><tbody></tbody></table>
+<h2 style="margin-top:14px">系统配置 · 会话与意图</h2><div class="kv">
+<div>会话超时(分钟)</div><div><input id="session_timeout"></div>
+<div>意图置信度阈值</div><div><input id="intent_conf"></div>
+<div>上下文最近消息条数</div><div><input id="ctx_recent"></div>
+<div>话题消息条数</div><div><input id="ctx_thread"></div>
+<div>业务配置自动刷新(秒,0=关)</div><div><input id="refresh"></div></div>
+<p><button onclick="saveSystem()">保存系统配置（热生效）</button> <span class="muted">写回本地配置文件，旧文件备份为 .bak</span></p></section>
+<section class="card"><h2>密钥（只显示打码）</h2><table id="sec"><thead><tr><th>变量</th><th>当前</th><th>填新值覆盖</th><th>生效</th></tr></thead><tbody></tbody></table>
+<p><button onclick="saveSecrets()">保存密钥</button> <span class="muted">写入 .env；接口永不返回明文</span></p>
+<div class="kv" id="feishu"></div></section>
+<section class="card"><h2>热生效 vs 需重启</h2><b class="ok">热生效</b><ul id="hot"></ul><b class="warn">需重启进程</b><ul id="restart"></ul>
+<p class="muted">飞书长连接由 SDK 自动断线重连；修改 App ID/Secret 后请重启服务（docker compose restart bot）。</p></section>
+<section class="card"><h2>最近报错</h2><table id="errs"><tbody></tbody></table></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let T=sessionStorage.getItem('dash_token')||'';
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function ts(t){return t?new Date(t*1000).toLocaleString('zh-CN',{hour12:false}):'—'}
+function dur(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+'天':'')+h+'小时'+m+'分'}
+function kv(el,rows){$(el).innerHTML=rows.map(([k,v])=>`<div>${esc(k)}</div><div>${v}</div>`).join('')}
+async function api(p,opt={}){opt.headers={...(opt.headers||{}),'Authorization':'Bearer '+T,'Content-Type':'application/json'};
+ const r=await fetch(p,opt);if(r.status===401){sessionStorage.removeItem('dash_token');showLogin();throw new Error('口令错误')}
+ const j=await r.json();if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j}
+function showLogin(){$('login').style.display='block';$('app').style.display='none'}
+function saveTok(){T=$('tok').value.trim();sessionStorage.setItem('dash_token',T);load()}
+function flash(t,cls){$('msg').className=cls||'';$('msg').textContent=t}
+async function load(){if(!T){showLogin();return}
+ try{const [o,s]=await Promise.all([api('/api/overview'),api('/api/system')]);$('login').style.display='none';$('app').style.display='grid';render(o,s)}
+ catch(e){flash(e.message,'bad')}}
+function render(o,s){$('botname').textContent=o.bot_name;
+ const wsc={connected:'ok',starting:'warn',reconnecting:'warn'}[o.ws.state]||'bad';
+ $('ws').innerHTML=`长连接：<b class="${wsc}">${esc(o.ws.state)}</b>`;
+ const t=o.today;$('stats').innerHTML=[['今日记录',t.records],['今日咨询',t.queries],['今日引导',t.guides],['LLM 降级',t.llm_fallback],['角色数',o.role_count],['机器人',o.bot_count]]
+  .map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
+ kv('ov',[['机器人/场景',esc(o.bot_name)+' · '+esc(o.scenario||'—')+(o.dedicated?'（专属）':'')],['角色',o.roles.map(r=>esc(r.command+' '+r.name)).join('、')],
+  ['长连接',`<span class="${wsc}">${esc(o.ws.state)}</span> · ${ts(o.ws.since)}`],['启动时间',ts(o.started_at)],['运行时长',dur(o.uptime_seconds)],
+  ['当前主模型',esc(o.llm.default+' / '+o.llm.model)],['降级链',esc([o.llm.default,...o.llm.fallback].join(' → '))],['配置文件',esc(o.config_path)]]);
+ const L=o.config_load;const src={remote:'飞书表格',local:'本地 YAML',local_fallback:'本地回退'}[L.source]||L.source;
+ kv('biz',[['来源',esc(src)+(o.remote_config.enabled?' · '+esc(o.remote_config.table_id):'')],['最近加载',ts(L.at)+' · '+esc(L.trigger)],
+  ['结果',L.ok?'<span class="ok">成功</span>':'<span class="bad">失败（保留旧配置）</span>'],['行数',L.rows??'—'],['错误',esc(L.error||'—')],
+  ['自动刷新',o.remote_config.refresh_seconds?o.remote_config.refresh_seconds+' 秒':'关闭']]);
+ if(!s){renderErr(o);return}
+ $('llm_default').value=s.llm.default;$('llm_fallback').value=s.llm.fallback.join(', ');
+ $('prov').tBodies[0].innerHTML=Object.entries(s.llm.providers).map(([n,p])=>`<tr data-n="${esc(n)}"><td>${esc(n)}<div class="muted">${esc(p.base_url)}</div></td>
+  <td><input data-k="model" value="${esc(p.model)}"></td><td><input data-k="fallback_models" value="${esc(p.fallback_models.join(', '))}"></td>
+  <td><input data-k="timeout" value="${esc(p.timeout)}" style="width:60px"></td><td><code>${esc(p.api_key_masked||'未设置')}</code><div class="muted">${esc(p.api_key_env||'')}</div></td></tr>`).join('');
+ $('session_timeout').value=s.session.timeout_minutes;$('intent_conf').value=s.intent.min_confidence;$('ctx_recent').value=s.context.recent_messages;
+ $('ctx_thread').value=s.context.thread_messages;$('refresh').value=s.remote_config.refresh_seconds;
+ $('sec').tBodies[0].innerHTML=s.secrets.map(x=>`<tr><td><code>${esc(x.name)}</code></td><td><code>${esc(x.masked||'未设置')}</code></td>
+  <td><input type="password" autocomplete="new-password" data-s="${esc(x.name)}" placeholder="留空不改"></td><td>${x.hot?'<span class="ok">热生效</span>':'<span class="warn">需重启</span>'}</td></tr>`).join('');
+ kv('feishu',[['飞书 App ID',esc(s.feishu.app_id)],['App Secret','<code>'+esc(s.feishu.app_secret_masked)+'</code>'],['开放平台',esc(s.feishu.domain)],['看板监听',esc(s.dashboard.host+':'+s.dashboard.port)]]);
+ $('hot').innerHTML=s.hot_reload.hot.map(x=>`<li>${esc(x)}</li>`).join('');$('restart').innerHTML=s.hot_reload.restart.map(x=>`<li>${esc(x)}</li>`).join('');
+ renderErr(o)}
+function renderErr(o){$('errs').tBodies[0].innerHTML=o.errors.length?o.errors.map(e=>`<tr><td style="white-space:nowrap">${ts(e.at)}</td><td>${esc(e.event)}</td><td>${esc(e.detail)}</td></tr>`).join(''):'<tr><td class="muted">暂无</td></tr>'}
+async function reloadCfg(){flash('加载中…');try{const r=await api('/api/reload',{method:'POST',body:'{}'});flash('已重新加载：'+(r.rows??'')+' 行','ok')}catch(e){flash('加载失败，已保留旧配置：'+e.message,'bad')}load()}
+async function saveSystem(){const providers={};document.querySelectorAll('#prov tbody tr').forEach(tr=>{const p={};tr.querySelectorAll('input').forEach(i=>p[i.dataset.k]=i.value);providers[tr.dataset.n]=p});
+ const body={llm:{default:$('llm_default').value.trim(),fallback:$('llm_fallback').value,providers},session:{timeout_minutes:$('session_timeout').value},
+  intent:{min_confidence:$('intent_conf').value},context:{recent_messages:$('ctx_recent').value,thread_messages:$('ctx_thread').value},remote_config:{refresh_seconds:$('refresh').value}};
+ try{const r=await api('/api/system',{method:'POST',body:JSON.stringify(body)});flash('已保存 '+r.changed.length+' 项'+(r.reload.ok?'，已热生效':'，但重载失败：'+r.reload.error),r.reload.ok?'ok':'bad')}catch(e){flash(e.message,'bad')}load()}
+async function saveSecrets(){const values={};document.querySelectorAll('#sec input').forEach(i=>{if(i.value.trim())values[i.dataset.s]=i.value.trim()});
+ if(!Object.keys(values).length){flash('没有填写新值');return}
+ try{const r=await api('/api/secrets',{method:'POST',body:JSON.stringify({values})});flash('已更新 '+r.changed.join(', ')+(r.restart_required.length?'；需重启：'+r.restart_required.join(', '):''),'ok')}catch(e){flash(e.message,'bad')}load()}
+load();setInterval(async()=>{if(T&&$('app').style.display!=='none'){try{render(await api('/api/overview'),null)}catch(e){}}},30000);
+</script></body></html>
