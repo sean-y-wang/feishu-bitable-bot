@@ -215,7 +215,7 @@ class BotService:
             else:
                 self._reply(msg.message_id, "想记录什么？直接说内容即可，例如：\n" + help_text(self.cfg, msg.chat_id))
             return
-        provider = self.extractor.providers[self.cfg.intent.llm or self.extractor.default]
+        provider = self.extractor.resolve(self.cfg.intent.llm)
         intent = classify(provider, self.cfg, roles, text, conv.excerpt)
         # Force the dedicated role onto the intent when present (except help/chitchat).
         # Keep LLM confidence as-is for record/query so low-confidence can fall back to guide.
@@ -559,7 +559,7 @@ class BotService:
         conv = ConversationContext.from_dict(s.raw_fields.get("__ctx__"))
         raw_text = s.raw_fields.get("__raw__", s.text)
         ctx = self._context(msg, all_people, conv, raw_text)
-        provider = self.extractor.providers[role.llm or self.extractor.default]
+        provider = self.extractor.resolve(role.llm)
         prev = {k: v for k, v in s.raw_fields.items() if not k.startswith("__")}
         audit = dict(
             chat_id=msg.chat_id,
@@ -614,6 +614,11 @@ class BotService:
             audit["latency_ms"] = latency
             ext_fields = dict(prev)
             ext_fields.update({k: v for k, v in ext.fields.items() if v not in (None, "", [])})
+
+        # Group → field binding (e.g. 所属项目); show on confirm card; user may still edit.
+        for key, val in self.cfg.resolve_chat_bindings(msg.chat_id, role):
+            ext_fields[key] = val
+            log.info("chat_binding.apply", chat_id=msg.chat_id, field_key=key, value=val)
 
         result = validate(role.fields, ext_fields, ctx)
 

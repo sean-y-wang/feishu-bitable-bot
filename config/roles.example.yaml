@@ -10,9 +10,10 @@ version: 1
 timezone: Asia/Shanghai
 llm:
   default: qwen
+  fallback: [deepseek]   # try next provider after default fails / 主模型失败后降级
   providers:
     openai:   { type: openai_compatible, base_url: https://api.openai.com/v1, api_key: "${OPENAI_API_KEY}", model: gpt-4o-mini, supports_json_schema: true }
-    qwen:     { type: openai_compatible, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, api_key: "${DASHSCOPE_API_KEY}", model: qwen-plus }
+    qwen:     { type: openai_compatible, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, api_key: "${DASHSCOPE_API_KEY}", model: qwen-plus, fallback_models: [qwen-turbo] }
     deepseek: { type: openai_compatible, base_url: https://api.deepseek.com, api_key: "${DEEPSEEK_API_KEY}", model: deepseek-chat }
     # Self-hosted / intranet OpenAI-compatible endpoint (placeholder host)
     # 自建 / 内网 OpenAI 兼容端点（主机名为占位）
@@ -46,6 +47,20 @@ context:
 # 溯源占位符（可用于 default:）：
 #   $sender  $sender_name  $today  $now  $raw_text  $context  $chat_name  $message_link
 # $raw_text / $context / $chat_name / $message_link / $now are always system-filled (not by the LLM).
+
+
+# Group chat → fixed field value (e.g. project / 需求方向)
+# chat_field_bindings:
+#   - chat_ids: ["oc_xxx"]
+#     field_key: project   # must exist on the role that writes
+#     value: AIHub
+#     role_command: /提需求   # optional
+
+remote_config:
+  enabled: false
+  app_token: ""
+  table_id: ""
+  refresh_seconds: 300
 
 roles:
   - command: /日报

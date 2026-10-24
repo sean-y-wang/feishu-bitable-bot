@@ -9,6 +9,7 @@ import threading
 import structlog
 
 from .config import ConfigError, load_config
+from .config.remote import apply_remote_config
 from .context import ContextCollector
 from .extractor import Extractor
 from .logging_setup import setup_logging
@@ -77,10 +78,11 @@ def resolve_bot_open_id(api, configured: str | None) -> str | None:
 def build_service(settings: Settings, cfg, lark_client) -> BotService:
     store = Store(settings.db_path)
     api = LarkFeishuAPI(lark_client)
+    cfg = apply_remote_config(cfg, api)
     providers = build_providers(cfg)
     bot_id = resolve_bot_open_id(api, settings.bot_open_id)
     collector = ContextCollector(api, cfg, applink_host=settings.applink_host, bot_open_id=bot_id)
-    extractor = Extractor(providers, cfg.llm.default)
+    extractor = Extractor(providers, cfg.llm.default, fallback=cfg.llm.fallback)
     qsvc = QueryService(api, cfg, providers, cfg.llm.default, base_url=settings.web_domain)
     return BotService(
         cfg,

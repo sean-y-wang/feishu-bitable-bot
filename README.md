@@ -61,6 +61,9 @@ Works over Feishu’s **WebSocket long connection** — deploy on a laptop or in
 - **Traceability placeholders** — `$sender_name` `$raw_text` `$context` `$chat_name` `$message_link` `$now`
 - **Private chat (p2p)** — DM without `@` when enabled
 - **OpenAI-compatible LLM** — OpenAI, DashScope/Qwen, DeepSeek, Kimi, Zhipu, vLLM, Ollama, …
+- **Chat→field bindings**: pin project/direction by Feishu `chat_id`
+- **Remote business config table**: prompts in a Bitable; secrets stay in `.env`; YAML fallback
+- **LLM fallback**: same-provider `fallback_models` + cross-provider `llm.fallback`
 - **Deterministic validation** — numbers, selects (synonyms / edit distance), relative dates, users, URLs
 - **Idempotent writes** — event/message dedup + Feishu `client_token` (UUIDv4)
 - **Hardened Docker** — non-root, read-only rootfs, credentials only from env

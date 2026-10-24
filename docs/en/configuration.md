@@ -25,7 +25,10 @@ Credentials are **never** stored in YAML — reference them with `${ENV_VAR}` (s
 | Key | Description |
 |---|---|
 | `timezone` | e.g. `Asia/Shanghai` for relative dates and `$today` / `$now` |
-| `llm.default` / `llm.providers.*` | OpenAI-compatible providers (`base_url`, `api_key`, `model`, `supports_json_schema`, `timeout`) |
+| `llm.default` / `llm.providers.*` | OpenAI-compatible providers (`base_url`, `api_key`, `model`, `fallback_models`, `supports_json_schema`, `timeout`) |
+| `llm.fallback` | Other **provider names** tried after the default exhausts retries |
+| `chat_field_bindings` | Map group `chat_id` → fixed field value (see below) |
+| `remote_config` | Overlay business prompts from a Bitable (see below; **no secrets**) |
 | `session.timeout_minutes` / `max_followups` | Follow-up timeout and max rounds |
 | `chats_allowlist` | Empty = all chats; otherwise allow-list of chat IDs |
 | `audit_store_text` | Whether to store original text in the SQLite audit log |
@@ -37,6 +40,51 @@ Credentials are **never** stored in YAML — reference them with `${ENV_VAR}` (s
 | `intent.llm` | Optional provider override for intent |
 | `intent.query_hints` | Phrases that tip a slash-command body toward progress query |
 | `context.*` | `enabled`, `recent_messages` (0–50), `include_parent`, `include_thread`, `thread_messages`, `max_chars`, `name_cache_seconds` |
+
+
+## Chat → field bindings
+
+Pin a fixed Bitable field value (e.g. project / direction) for messages from a given Feishu group:
+
+```yaml
+chat_field_bindings:
+  - chat_ids: ["oc_xxxxxxxx"]
+    field_key: project
+    value: AIHub
+```
+
+Or under a role: `roles[].chat_bindings`. Applied before validate/confirm (user can still edit on the confirm card). Get `chat_id` from event payloads (`oc_…`).
+
+## Remote business config table
+
+Store **business** knobs (system/guide prompts, guide copy, field descriptions, chat bindings) in a Bitable. Secrets and infra stay in `.env` / YAML and are never overwritten remotely. On fetch failure the bot keeps local YAML and logs a warning.
+
+```yaml
+remote_config:
+  enabled: true
+  app_token: bascnXXXX
+  table_id: tblXXXX
+  refresh_seconds: 300   # reserved; applied at startup today
+```
+
+Suggested columns: `config_key` | `config_value` | `role_command` | `enabled`.  
+Keys: `system_prompt`, `guide_prompt`, `reply_style`, `first_guide_text`, `query_docs_hint`, `min_content_chars`, `bot_name`, `chat_binding` (JSON), `field.<key>.description`.
+
+Enough for “new scenario = edit prompts in the table”; schema / target table changes may still need YAML.
+
+## LLM fallback
+
+```yaml
+llm:
+  default: qwen
+  fallback: [deepseek]
+  providers:
+    qwen:
+      model: qwen-plus
+      fallback_models: [qwen-turbo]
+```
+
+Same-provider `fallback_models` first, then cross-provider `llm.fallback`. Logs: `llm.fallback`.
 
 ## Roles
 
@@ -58,6 +106,7 @@ Each entry under `roles[]`:
 | `receipt_title` | Optional override for success receipt title |
 | `queryable` | Enable progress query for this role |
 | `query.search_fields` / `reply_fields` / `max_candidates` / `max_reply` / `fallback_limit` | Query pipeline knobs |
+| `chat_bindings` | Per-role chat→field bindings |
 | `fields[]` | Field specs (see below) |
 
 ### Fields

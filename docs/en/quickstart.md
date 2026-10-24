@@ -63,6 +63,9 @@ Private chat works without `@` when `p2p_enabled: true`.
 
 Useful commands: `/help`, `/取消` (cancel an in-flight follow-up).
 
+
+> Advanced: chat→field bindings, remote business config, LLM fallback — see [Configuration](configuration.md). Business knobs can live in a Bitable; **secrets stay in `.env`**.
+
 ## Next
 
 - [Feishu setup](feishu-setup.md) — scopes, publish, add app to Base

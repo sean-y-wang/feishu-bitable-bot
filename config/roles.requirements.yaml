@@ -16,9 +16,12 @@ query_docs_hint: "若需要查看更多记录，请自行打开需求多维表�
 timezone: Asia/Shanghai
 llm:
   default: qwen
+  # Cross-provider fallback when default exhausts retries (same-provider: providers.*.fallback_models)
+  # 主模型重试耗尽后按序降级；同 provider 换 model 用 fallback_models
+  fallback: [deepseek]
   providers:
     openai:   { type: openai_compatible, base_url: https://api.openai.com/v1, api_key: "${OPENAI_API_KEY}", model: gpt-4o-mini, supports_json_schema: true }
-    qwen:     { type: openai_compatible, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, api_key: "${DASHSCOPE_API_KEY}", model: qwen-plus }
+    qwen:     { type: openai_compatible, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, api_key: "${DASHSCOPE_API_KEY}", model: qwen-plus, fallback_models: [qwen-turbo] }
     deepseek: { type: openai_compatible, base_url: https://api.deepseek.com, api_key: "${DEEPSEEK_API_KEY}", model: deepseek-chat }
     private:  { type: openai_compatible, base_url: "http://llm.example.internal:8000/v1", api_key: "${PRIVATE_LLM_KEY}", model: qwen2.5-72b-instruct }
 session: { timeout_minutes: 15, max_followups: 2 }  # 含糊收集：话题内一次问齐；超时自动取消
@@ -41,6 +44,27 @@ context:
   include_thread: true
   thread_messages: 20
   max_chars: 3000
+
+
+# ---- Group → Bitable field binding (区分需求方向) ----
+# 在飞书群设置 / 开放平台事件里拿到 chat_id（形如 oc_xxx），绑定到字段 key（如 project）。
+# chat_id from Feishu group settings / event payload; field_key must match roles[].fields[].key
+# chat_field_bindings:
+#   - chat_ids: ["oc_xxxxxxxx"]
+#     field_key: project
+#     value: AIHub
+# Or under the role: roles[].chat_bindings (same shape).
+
+# ---- Remote business config (prompts etc. from a Bitable; secrets stay in .env) ----
+# 业务提示词等可放配置表；密钥仍走 .env。加载失败则回退本 YAML。
+remote_config:
+  enabled: false
+  app_token: ""          # bascn… of the config base
+  table_id: ""           # tbl… key-value table
+  refresh_seconds: 300   # reserved; currently applied at startup
+  # Table columns (建议列名): config_key | config_value | role_command | enabled
+  # Keys: system_prompt / guide_prompt / reply_style / first_guide_text / query_docs_hint /
+  #       min_content_chars / bot_name / chat_binding (JSON) / field.<key>.description
 
 roles:
   - command: /提需求
