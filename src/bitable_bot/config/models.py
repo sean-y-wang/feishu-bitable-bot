@@ -193,7 +193,7 @@ class AppConfig(BaseModel):
     p2p_enabled: bool = True
     ack_after_seconds: float = Field(2.0, ge=0)  # 0 = disable "收到，正在整理…"
     first_guide_enabled: bool = True
-    first_guide_text: str = "提示：直接说需求即可，不必打命令。例如「AIHub 货架页加个导出，挺急」。"
+    first_guide_text: str = "提示：直接说需求即可，不必打命令。例如「订单导出太慢了，P1，周五前要」。"
     chats_allowlist: list[str] = Field(default_factory=list)
     audit_store_text: bool = True
     roles: list[Role]

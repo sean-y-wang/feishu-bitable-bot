@@ -116,7 +116,7 @@ def test_query_by_intent(harness):
             "record_id": "recA",
             "app_token": "bascnYYYY",
             "table_id": "tblYYYY",
-            "fields": {"标题": "SparkAudio API 流式", "严重程度": "P1"},
+            "fields": {"标题": "Acme API 流式", "严重程度": "P1"},
         },
         {
             "record_id": "recB",
@@ -126,13 +126,13 @@ def test_query_by_intent(harness):
         },
     ]
     h.provider.outputs = [
-        intent("/bug", 0.92, action="query", query="SparkAudio", keywords=["SparkAudio"]),
+        intent("/bug", 0.92, action="query", query="Acme API", keywords=["Acme", "API"]),
         {"summary": "找到相关缺陷：", "items": [{"record_id": "recA", "one_liner": "流式返回，P1"}]},
     ]
-    h.service.handle(make_msg("SparkAudio 上线了吗"))
+    h.service.handle(make_msg("Acme API 上线了吗"))
     assert not h.api.records
     reply = h.api.replies[-1]["text"]
-    assert "流式" in reply or "SparkAudio" in reply or "找到" in reply
+    assert "流式" in reply or "Acme" in reply or "找到" in reply
     assert "recA" in reply or "bascnYYYY" in reply
     assert h.store.audit_rows()[-1]["command"] == "query:/bug"
     assert h.store.sessions_for("oc_1", "ou_alice") == []

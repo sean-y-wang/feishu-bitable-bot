@@ -1,4 +1,9 @@
-# Copy to config/roles.yaml and edit. Credentials are NOT written here: use ${ENV_VAR}.
+# Copy to config/roles.yaml and edit.
+# 复制为 config/roles.yaml 后修改。
+# Credentials are NOT written here — use ${ENV_VAR} only.
+# 凭证不要写在这里，只用 ${ENV_VAR}。
+# Use placeholder app_token/table_id (bascnXXXX / tblXXXX); put real IDs only in local roles.yaml (gitignored).
+# app_token/table_id 请用占位符；真实 ID 只放本地 roles.yaml（已被 gitignore）。
 version: 1
 timezone: Asia/Shanghai
 llm:
@@ -7,33 +12,38 @@ llm:
     openai:   { type: openai_compatible, base_url: https://api.openai.com/v1, api_key: "${OPENAI_API_KEY}", model: gpt-4o-mini, supports_json_schema: true }
     qwen:     { type: openai_compatible, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, api_key: "${DASHSCOPE_API_KEY}", model: qwen-plus }
     deepseek: { type: openai_compatible, base_url: https://api.deepseek.com, api_key: "${DEEPSEEK_API_KEY}", model: deepseek-chat }
-    private:  { type: openai_compatible, base_url: "http://10.0.0.8:8000/v1", api_key: "${PRIVATE_LLM_KEY}", model: qwen2.5-72b-instruct }
+    # Self-hosted / intranet OpenAI-compatible endpoint (placeholder host)
+    # 自建 / 内网 OpenAI 兼容端点（主机名为占位）
+    private:  { type: openai_compatible, base_url: "http://llm.example.internal:8000/v1", api_key: "${PRIVATE_LLM_KEY}", model: qwen2.5-72b-instruct }
 session: { timeout_minutes: 30, max_followups: 2 }
-chats_allowlist: []          # empty = all chats allowed
+chats_allowlist: []          # empty = all chats / 空=不限制
 audit_store_text: true       # false = do not store original text in audit_log
-p2p_enabled: true            # private chat: any message triggers the bot, no @ needed
-ack_after_seconds: 2         # LLM 超过此时长先回「收到，正在整理…」；0=关闭
+p2p_enabled: true            # private chat: no @ needed / 私聊无需 @
+ack_after_seconds: 2         # LLM slow-ack 「收到，正在整理…」; 0=off
 first_guide_enabled: true
-first_guide_text: "提示：直接说需求即可，不必打命令。例如「AIHub 货架页加个导出，挺急」。"
+first_guide_text: "提示：直接说需求即可，不必打命令。例如「订单导出太慢了，P1，周五前要」。"
 
-# Without a slash command the LLM picks the role. Below min_confidence the bot asks the user to confirm.
+# Without a slash command the LLM picks the role (+ record|query).
+# 无斜杠时由 LLM 选角色（并区分记录/查询）。Below min_confidence → ask user to confirm.
 intent:
   enabled: true
   min_confidence: 0.7
-  # llm: qwen                # optional, defaults to llm.default
+  # llm: qwen                # optional override / 可选覆盖 llm.default
 
-# Context pulled when triggered (needs extra scopes, see docs/feishu-app-setup.md; degrades gracefully).
+# Conversation context when triggered (needs extra scopes; degrades gracefully).
+# 触发时拉取上下文（需额外权限；缺失则降级为空）。
 context:
   enabled: true
-  recent_messages: 10        # latest N messages of the chat (0 = off, max 50)
-  include_parent: true       # the replied/quoted message
-  include_thread: true       # messages of the current thread
+  recent_messages: 10        # latest N messages (0=off, max 50)
+  include_parent: true       # replied / quoted message
+  include_thread: true
   thread_messages: 20
-  max_chars: 3000            # cap for the LLM prompt and $context
+  max_chars: 3000            # cap for LLM prompt and $context
 
-# Traceability placeholders (usable as `default:`):
+# Traceability placeholders for `default:` /
+# 溯源占位符（可用于 default:）：
 #   $sender  $sender_name  $today  $now  $raw_text  $context  $chat_name  $message_link
-# $raw_text / $context / $chat_name / $message_link / $now are always filled by the system (not by the LLM).
+# $raw_text / $context / $chat_name / $message_link / $now are always system-filled (not by the LLM).
 
 roles:
   - command: /日报
@@ -43,6 +53,7 @@ roles:
     llm: qwen
     allowed_chats: []
     allowed_users: []
+    confirm_before_write: false
     target: { app_token: bascnXXXX, table_id: tblXXXX }
     fields:
       - { key: reporter, field: 提交人, type: user, required: true, default: $sender }
@@ -64,7 +75,7 @@ roles:
         type: multi_select
         options: [{ value: 前端 }, { value: 后端, synonyms: [服务端, server] }, { value: 测试 }]
       - { key: link, field: 相关链接, type: url }
-      # traceability (提交人 above already records who submitted)
+      # traceability / 溯源
       - { key: raw_text, field: 原始消息, type: text, default: $raw_text }
       - { key: context, field: 上下文摘录, type: text, default: $context }
       - { key: source_chat, field: 来源群, type: text, default: $chat_name }
@@ -74,21 +85,21 @@ roles:
   - command: /bug
     name: 缺陷登记
     description: 报告 bug、线上问题、报错、故障；也可查询已有缺陷进展
-    confirm_before_write: false
-    queryable: true
+    confirm_before_write: false  # set true in production for preview / 生产可开写前预览
+    queryable: true              # allow progress query / 允许进展查询
     query:
       search_fields: [title]
       reply_fields: [title, severity, owner, due]
       max_candidates: 20
       max_reply: 3
       fallback_limit: 30
-    min_content_chars: 0   # tests use short bodies; production roles set 8–12
+    min_content_chars: 0         # tests/examples use 0; production tip: 8–12 with guide_prompt
     system_prompt: |
       你在帮研发登记缺陷。优先抽出：标题、严重程度、负责人、截止日期。
       用户只说「记一下」而无实质内容时对应字段填 null，不要编造。
     guide_prompt: |
       想登记缺陷的话，请尽量说清：标题、严重程度（P0–P3）、负责人（可选）。
-      例：@我 /bug 登录页白屏，P1，负责人 @张三
+      例：@我 登录页偶发卡顿，P2
     reply_style: 简洁、条目化，少客套
     target: { app_token: bascnYYYY, table_id: tblYYYY }
     fields:
@@ -97,7 +108,6 @@ roles:
           options: [{value: P0, synonyms: [紧急, 线上故障]}, {value: P1}, {value: P2}, {value: P3}] }
       - { key: owner, field: 负责人, type: user, required: false }
       - { key: due, field: 截止日期, type: date }
-      # traceability
       - { key: proposer, field: 提出人, type: text, default: $sender_name, description: 提出问题的人；未明确提到他人时留空 }
       - { key: raw_text, field: 原始消息, type: text, default: $raw_text }
       - { key: context, field: 上下文摘录, type: text, default: $context }

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "feishu-bitable-bot"
 version = "0.1.0"
-description = "Feishu/Lark bot: @mention + command to record messages into Bitable with role templates and AI field extraction"
+description = "Feishu/Lark bot: natural-language (or slash) recording into Bitable — multi-role templates, context, confirm-before-write, progress query"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"

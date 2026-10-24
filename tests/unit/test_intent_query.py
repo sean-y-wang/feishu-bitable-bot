@@ -11,7 +11,7 @@ from ..conftest import NOW, FakeProvider
 
 
 def test_looks_like_query(cfg):
-    assert looks_like_query("SparkAudio 上线了吗", cfg.intent.query_hints)
+    assert looks_like_query("Acme API 上线了吗", cfg.intent.query_hints)
     assert not looks_like_query("今天完成了登录模块", cfg.intent.query_hints)
 
 
@@ -48,9 +48,9 @@ def test_system_prompt_injected(cfg):
 
 
 def test_extract_keywords_strips_hints():
-    assert "进展" not in extract_keywords("SparkAudio API 进展怎样了")
-    assert "SparkAudio" in " ".join(extract_keywords("SparkAudio API 进展怎样了")) or "API" in extract_keywords(
-        "SparkAudio API 进展怎样了"
+    assert "进展" not in extract_keywords("Acme API 进展怎样了")
+    assert "Acme" in " ".join(extract_keywords("Acme API 进展怎样了")) or "API" in extract_keywords(
+        "Acme API 进展怎样了"
     )
 
 
