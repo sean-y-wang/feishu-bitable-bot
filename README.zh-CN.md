@@ -12,6 +12,10 @@
 
 在群里或私聊里随口说出需求、日报、缺陷，机器人会理解自然语言（斜杠命令可选）、带上聊天上下文、按需写前确认，并把原始消息与话题摘录一并落表便于追溯。也可以直接问「Acme API 上线了吗」，它会在同一张表里检索相似记录并汇总进展。
 
+![Demo](docs/assets/demo.gif)
+
+*演示：自然语言记录（写前确认）+ 进展查询，无需斜杠命令。*
+
 ```text
 你：  @记录机器人 订单导出太慢了，P1，周五前要
 机器人：📋 预览 →「缺陷登记」
@@ -85,6 +89,31 @@ docker compose logs -f bot
 
 English: [Quick start](docs/en/quickstart.md) · [Feishu setup](docs/en/feishu-setup.md) · [Configuration](docs/en/configuration.md) · [Architecture](docs/en/architecture.md)
 
+
+## 架构
+
+高层数据流（单进程、仅出站 WebSocket 长连接）：
+
+![架构图](docs/assets/architecture.svg)
+
+```mermaid
+flowchart LR
+  Chat["飞书 / Lark 会话<br/>群 @ 或单聊"] --> WS["WebSocket<br/>长连接"]
+  WS --> Intent{"意图<br/>record | query"}
+  Intent -->|记录| Ctx[上下文收集]
+  Ctx --> Ext[LLM 抽取]
+  Ext --> Val[校验]
+  Val --> Conf{写前确认?}
+  Conf -->|确认 / 跳过| Write[写入多维表格]
+  Intent -->|查询| Search[表格检索]
+  Search --> Rerank[LLM 重排]
+  Rerank --> Reply[回复进展]
+  Write --> SQLite[(SQLite<br/>会话 / 审计)]
+  Reply --> SQLite
+```
+
+详细说明见 [docs/zh-CN/architecture.md](docs/zh-CN/architecture.md)。
+
 ## 项目结构
 
 ```text
@@ -92,6 +121,7 @@ feishu-bitable-bot/
 ├── config/
 │   └── roles.example.yaml      # 复制为 roles.yaml（已 gitignore）
 ├── docs/
+│   ├── assets/                 # architecture.svg、demo.gif
 │   ├── en/                     # 英文文档
 │   └── zh-CN/                  # 中文文档
 ├── src/bitable_bot/

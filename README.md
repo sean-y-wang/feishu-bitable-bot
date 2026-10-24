@@ -12,6 +12,10 @@
 
 Capture requirements, daily reports, and bugs from group chat or DM. The bot understands natural language (slash commands optional), pulls conversation context, confirms before writing when you want, and keeps a full trail back to the original message. Ask “is Acme API shipped yet?” and it searches the same table for progress.
 
+![Demo](docs/assets/demo.gif)
+
+*Demo: natural-language record with confirm, then a progress query — no slash commands required.*
+
 ```text
 You:  @RecordBot order export is too slow, P1, need it by Friday
 Bot:  📋 Preview →「缺陷登记」
@@ -85,6 +89,31 @@ Then: open the Feishu developer console → scopes + long connection + publish �
 
 中文文档：[快速开始](docs/zh-CN/quickstart.md) · [飞书配置](docs/zh-CN/feishu-setup.md) · [配置说明](docs/zh-CN/configuration.md) · [架构](docs/zh-CN/architecture.md)
 
+
+## Architecture
+
+High-level data flow (single process, outbound WebSocket only):
+
+![Architecture](docs/assets/architecture.svg)
+
+```mermaid
+flowchart LR
+  Chat["Feishu / Lark chat<br/>group @ or p2p"] --> WS["WebSocket<br/>long connection"]
+  WS --> Intent{"Intent<br/>record | query"}
+  Intent -->|record| Ctx[Context collect]
+  Ctx --> Ext[LLM extract]
+  Ext --> Val[Validate]
+  Val --> Conf{Confirm?}
+  Conf -->|yes / skip| Write[Bitable write]
+  Intent -->|query| Search[Bitable search]
+  Search --> Rerank[LLM rerank]
+  Rerank --> Reply[Reply]
+  Write --> SQLite[(SQLite<br/>session / audit)]
+  Reply --> SQLite
+```
+
+Details: [docs/en/architecture.md](docs/en/architecture.md).
+
 ## Project structure
 
 ```text
@@ -92,6 +121,7 @@ feishu-bitable-bot/
 ├── config/
 │   └── roles.example.yaml      # copy → roles.yaml (gitignored)
 ├── docs/
+│   ├── assets/                 # architecture.svg, demo.gif
 │   ├── en/                     # English guides
 │   └── zh-CN/                  # Chinese guides
 ├── src/bitable_bot/

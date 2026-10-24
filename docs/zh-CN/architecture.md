@@ -4,6 +4,8 @@
 
 ## 数据流
 
+![架构图](../assets/architecture.svg)
+
 ```text
 飞书 / Lark
    │  WebSocket 长连接（仅出站）

@@ -4,6 +4,8 @@
 
 ## Data flow
 
+![Architecture](../assets/architecture.svg)
+
 ```text
 Feishu / Lark
    │  WebSocket long connection (outbound only)
