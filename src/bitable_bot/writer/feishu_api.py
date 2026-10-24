@@ -180,32 +180,54 @@ class LarkFeishuAPI:
     def search_records(
         self, app_token: str, table_id: str, filter_info: dict[str, Any], page_size: int = 20
     ) -> list[dict[str, Any]]:
-        import lark_oapi as lark
+        from lark_oapi.api.bitable.v1 import (
+            Condition,
+            FilterInfo,
+            SearchAppTableRecordRequest,
+            SearchAppTableRecordRequestBody,
+        )
 
-        body = {"filter": filter_info, "automatic_fields": False}
-        uri = f"/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records/search"
-        req = (
-            lark.BaseRequest.builder()
-            .http_method(lark.HttpMethod.POST)
-            .uri(uri)
-            .token_types({lark.AccessTokenType.TENANT})
-            .queries([("page_size", str(max(1, min(100, page_size)))), ("user_id_type", "open_id")])
-            .body(json.dumps(body).encode())
-            .headers({"Content-Type": "application/json; charset=utf-8"})
+        conditions = [
+            Condition.builder()
+            .field_name(c["field_name"])
+            .operator(c["operator"])
+            .value(c.get("value") or [])
+            .build()
+            for c in (filter_info.get("conditions") or [])
+        ]
+        filt = (
+            FilterInfo.builder()
+            .conjunction(filter_info.get("conjunction") or "or")
+            .conditions(conditions)
             .build()
         )
-        resp = self.client.request(req)
-        raw = getattr(resp, "raw", None)
-        try:
-            payload = json.loads(raw.content) if raw is not None and raw.content else {}
-        except (ValueError, TypeError):
-            payload = {}
-        code = payload.get("code", resp.code if resp.code is not None else -1)
-        if code != 0:
-            raise FeishuAPIError(
-                code, payload.get("msg") or resp.msg or "search failed", getattr(raw, "status_code", None)
-            )
-        return (payload.get("data") or {}).get("items") or []
+        body = (
+            SearchAppTableRecordRequestBody.builder()
+            .filter(filt)
+            .automatic_fields(False)
+            .build()
+        )
+        req = (
+            SearchAppTableRecordRequest.builder()
+            .app_token(app_token)
+            .table_id(table_id)
+            .page_size(max(1, min(100, page_size)))
+            .user_id_type("open_id")
+            .request_body(body)
+            .build()
+        )
+        resp = self.client.bitable.v1.app_table_record.search(req)
+        self._check(resp)
+        items = []
+        for rec in resp.data.items or []:
+            # Normalize to dict shape used by query layer (fields + record_id)
+            fields = getattr(rec, "fields", None) or {}
+            if hasattr(fields, "map"):
+                fields = dict(fields.map) if fields.map is not None else {}
+            elif not isinstance(fields, dict):
+                fields = dict(fields) if fields else {}
+            items.append({"record_id": getattr(rec, "record_id", "") or "", "fields": fields})
+        return items
 
     def list_records(self, app_token: str, table_id: str, page_size: int = 30) -> list[dict[str, Any]]:
         data = self._get_json(
