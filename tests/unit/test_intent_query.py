@@ -2,9 +2,9 @@
 
 from datetime import UTC, datetime
 
-from bitable_bot.extractor.intent import classify, looks_like_query
+from bitable_bot.extractor.intent import classify, looks_like_help, looks_like_query
 from bitable_bot.extractor.prompt import build_messages
-from bitable_bot.query.keywords import extract_keywords
+from bitable_bot.query.keywords import extract_keywords, is_own_progress_query
 from bitable_bot.query.summarize import _project
 
 from ..conftest import NOW, FakeProvider
@@ -65,3 +65,24 @@ def test_project_reply_fields_only(cfg):
     out = _project(role, raw)
     assert out["record_id"] == "rec1" and out.get("title") == "白屏"
     assert "原始消息" not in out and "secret" not in str(out)
+
+
+def test_looks_like_help():
+    assert looks_like_help("你可以干什么")
+    assert looks_like_help("你是谁？")
+    assert looks_like_help("hi")
+    assert looks_like_help("在吗")
+    assert not looks_like_help("明天下午三点配合集团演示")
+    assert not looks_like_help("我的需求进展如何")
+
+
+def test_classify_help_fast_path(cfg):
+    p = FakeProvider([])  # must not be called
+    intent = classify(p, cfg, cfg.roles, "你可以干什么")
+    assert intent.action == "help" and not p.calls
+
+
+def test_is_own_progress_query():
+    assert is_own_progress_query("我的需求进展如何")
+    assert is_own_progress_query("查一下我提的需求")
+    assert not is_own_progress_query("SparkAudio 上线了吗")

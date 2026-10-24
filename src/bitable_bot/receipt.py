@@ -6,6 +6,7 @@ from typing import Any
 
 from .config.models import FieldSpec, Role
 from .service_fmt import fmt_value
+from .writer.bitable import record_url
 
 _HIDDEN = frozenset({"$context", "$raw_text"})
 
@@ -25,7 +26,9 @@ def preview_lines(role: Role, values: dict[str, Any], people: dict[str, str], tz
     lines = [f"请确认写入「{role.name}」："]
     for spec in visible_specs(role, values):
         lines.append(f"• {spec.field}：{fmt_value(spec, values[spec.key], people, tz)}")
-    lines.append("回复「确认 / 好 / 是 / ok」写入；点卡片「确认 / 取消 / 修改」亦可；可直接改字段，如「优先级改成 P0」；/取消 放弃。")
+    lines.append(
+        "回复「确认 / 好 / 是 / ok」写入；点卡片「确认 / 取消 / 修改」亦可；可直接改字段，如「优先级改成 P0」；/取消 放弃。"
+    )
     return lines
 
 
@@ -160,5 +163,66 @@ def confirm_card(
     return {
         "config": {"wide_screen_mode": True},
         "header": {"title": {"tag": "plain_text", "content": title}, "template": "blue"},
+        "elements": elements,
+    }
+
+
+def query_card(
+    role: Role,
+    summary: str,
+    rows: list[dict[str, Any]],
+    *,
+    docs_hint: str | None = None,
+    base_url: str = "https://feishu.cn",
+) -> dict[str, Any]:
+    """Interactive consult result card (title/status/priority/proposer/due + optional open link)."""
+    elements: list[dict[str, Any]] = []
+    if summary:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": summary}})
+    for i, row in enumerate(rows, 1):
+        title = row.get("one_liner") or row.get("title") or "记录"
+        fields = []
+        for key in role.query.reply_fields:
+            spec = role.field_by_key(key)
+            if not spec:
+                continue
+            val = row.get(key)
+            if val in (None, "", []):
+                continue
+            # skip repeating title line if already in one_liner header
+            if key == "title" and row.get("one_liner"):
+                fields.append({"is_short": True, "text": {"tag": "lark_md", "content": f"**{spec.field}**\n{val}"}})
+                continue
+            fields.append({"is_short": True, "text": {"tag": "lark_md", "content": f"**{spec.field}**\n{val}"}})
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": f"**{i}. {title}**"}})
+        if fields:
+            for j in range(0, len(fields), 5):
+                elements.append({"tag": "div", "fields": fields[j : j + 5]})
+        rid = str(row.get("record_id") or "")
+        if rid:
+            url = record_url(role, rid, base_url)
+            elements.append(
+                {
+                    "tag": "action",
+                    "actions": [
+                        {
+                            "tag": "button",
+                            "text": {"tag": "plain_text", "content": "打开记录"},
+                            "type": "default",
+                            "url": url,
+                        }
+                    ],
+                }
+            )
+    if docs_hint:
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": f"_{docs_hint}_"}})
+    if not elements:
+        elements = [{"tag": "div", "text": {"tag": "plain_text", "content": summary or "暂无结果"}}]
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": f"「{role.name}」咨询结果"},
+            "template": "wathet",
+        },
         "elements": elements,
     }

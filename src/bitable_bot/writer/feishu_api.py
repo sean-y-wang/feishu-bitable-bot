@@ -188,25 +188,11 @@ class LarkFeishuAPI:
         )
 
         conditions = [
-            Condition.builder()
-            .field_name(c["field_name"])
-            .operator(c["operator"])
-            .value(c.get("value") or [])
-            .build()
+            Condition.builder().field_name(c["field_name"]).operator(c["operator"]).value(c.get("value") or []).build()
             for c in (filter_info.get("conditions") or [])
         ]
-        filt = (
-            FilterInfo.builder()
-            .conjunction(filter_info.get("conjunction") or "or")
-            .conditions(conditions)
-            .build()
-        )
-        body = (
-            SearchAppTableRecordRequestBody.builder()
-            .filter(filt)
-            .automatic_fields(False)
-            .build()
-        )
+        filt = FilterInfo.builder().conjunction(filter_info.get("conjunction") or "or").conditions(conditions).build()
+        body = SearchAppTableRecordRequestBody.builder().filter(filt).automatic_fields(False).build()
         req = (
             SearchAppTableRecordRequest.builder()
             .app_token(app_token)

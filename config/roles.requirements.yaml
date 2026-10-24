@@ -27,12 +27,12 @@ audit_store_text: true
 p2p_enabled: true
 ack_after_seconds: 2
 first_guide_enabled: true
-first_guide_text: "我是需求小助手。直接 @我 说需求即可登记；问「XX 上线了吗」可查进展。确认时会在话题里用卡片让你确认 / 取消 / 修改。"
+first_guide_text: "我是需求小助手，只做两件事：① 提需求（自然语言说明，话题里卡片确认后写入）② 查进展（问「我的需求进展 / XX 上线了吗」，卡片返回最相关少量结果）。闲聊问「你可以干什么」我会再引导一次。"
 
 intent:
   enabled: true
   min_confidence: 0.6
-  # dedicated 模式下只区分 record|query，不再选角色
+  # dedicated 模式下区分 record|query|help，不再选角色
 
 context:
   enabled: true

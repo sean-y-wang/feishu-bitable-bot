@@ -127,7 +127,15 @@ def main() -> int:
     )
     service = build_service(settings, cfg, lark_client)
     threading.Thread(target=_sweeper, args=(service,), daemon=True, name="sweeper").start()
-    log.info("bot.starting", scenario=cfg.scenario, dedicated=cfg.dedicated, bot_name=cfg.display_name(), roles=[r.command for r in cfg.roles], db=settings.db_path, bot_open_id=service.bot_open_id)
+    log.info(
+        "bot.starting",
+        scenario=cfg.scenario,
+        dedicated=cfg.dedicated,
+        bot_name=cfg.display_name(),
+        roles=[r.command for r in cfg.roles],
+        db=settings.db_path,
+        bot_open_id=service.bot_open_id,
+    )
     Gateway(service, settings.workers).run(settings.app_id, settings.app_secret, settings.open_domain)
     return 0
 
