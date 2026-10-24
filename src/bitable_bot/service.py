@@ -55,6 +55,32 @@ def _is_thin(text: str, excerpt: str, min_chars: int) -> bool:
     return len(body) < min_chars and len(ctx) < min_chars
 
 
+def _record_too_vague(role: Role, ext_fields: dict, raw_text: str) -> bool:
+    """True when extract looks like chitchat-as-record: no title / almost empty + short text."""
+    title = ext_fields.get("title")
+    if title not in (None, "", []):
+        return False
+    body = (raw_text or "").strip()
+    min_chars = role.min_content_chars or 12
+    if len(body) < min_chars:
+        return True
+    # Count non-empty LLM keys excluding ones that are usually defaults
+    skip = {
+        "project",
+        "type",
+        "priority",
+        "status",
+        "proposer",
+        "source",
+        "raw_text",
+        "context",
+        "message_link",
+        "submitted_at",
+    }
+    filled = [k for k, v in ext_fields.items() if v not in (None, "", []) and k not in skip]
+    return len(filled) == 0
+
+
 class BotService:
     def __init__(
         self,
@@ -86,6 +112,8 @@ class BotService:
 
     def handle(self, msg: IncomingMessage) -> None:
         try:
+            # Lazy cleanup so timeouts fire even if the background sweeper is delayed.
+            self.expire_sessions()
             self._handle(msg)
         except Exception:
             log.exception("handle.failed", message_id=msg.message_id)
@@ -190,6 +218,7 @@ class BotService:
         provider = self.extractor.providers[self.cfg.intent.llm or self.extractor.default]
         intent = classify(provider, self.cfg, roles, text, conv.excerpt)
         # Force the dedicated role onto the intent when present (except help/chitchat).
+        # Keep LLM confidence as-is for record/query so low-confidence can fall back to guide.
         if dedicated_role is not None:
             if intent.action == "help" or (intent.action not in ("record", "query", "help") and looks_like_help(text)):
                 intent.action = "help"
@@ -201,8 +230,6 @@ class BotService:
                     # Heuristic fallback when LLM returns null action
                     intent.action = "query" if looks_like_query(text, self.cfg.intent.query_hints) else "record"
                     intent.confidence = max(intent.confidence, 0.8)
-                else:
-                    intent.confidence = max(intent.confidence, self.cfg.intent.min_confidence)
         log.info(
             "intent.result",
             action=intent.action,
@@ -220,12 +247,21 @@ class BotService:
             self._handle_query_intent(msg, intent, roles, text, people, conv)
             return
 
+        # Low-confidence / thin "like a requirement but not": guide, do not enter补字段.
+        if dedicated_role is not None and (
+            intent.confidence < self.cfg.intent.min_confidence
+            or (dedicated_role.min_content_chars > 0 and _is_thin(text, conv.excerpt, dedicated_role.min_content_chars))
+        ):
+            log.info("intent.low_conf_guide", confidence=intent.confidence, text_len=len(text or ""))
+            self._reply(msg.message_id, help_text(self.cfg, msg.chat_id))
+            return
+
         if intent.role is not None and intent.confidence >= self.cfg.intent.min_confidence:
             self._start(msg, intent.role, text, people, raw_text=text, conv=conv)
             return
-        # Dedicated bot never opens a role-pick session.
+        # Dedicated bot never opens a role-pick session; unclear → guide.
         if dedicated_role is not None:
-            self._start(msg, dedicated_role, text, people, raw_text=text, conv=conv)
+            self._reply(msg.message_id, help_text(self.cfg, msg.chat_id))
             return
         s = Session(
             chat_id=msg.chat_id,
@@ -422,7 +458,8 @@ class BotService:
         if conv is None:
             conv = self.collector.collect(msg)
         if role.min_content_chars > 0 and _is_thin(body, conv.excerpt, role.min_content_chars):
-            self._reply(source_id, _auto_guide(role))
+            tip = help_text(self.cfg, msg.chat_id) if self.cfg.dedicated else _auto_guide(role)
+            self._reply(source_id, tip)
             return
         if not body and not conv.excerpt:
             req = "、".join(f.field for f in role.fields if f.required)
@@ -587,6 +624,19 @@ class BotService:
                 self._ask_confirm(reply_to, role, s, result.values, all_people, ctx.tz, audit)
                 return
             self._do_write(msg, role, s, result.values, all_people, ctx, audit, reply_to)
+            return
+
+        # First-pass extract almost empty + short text → guide, not补字段连环追问.
+        if (
+            self.cfg.dedicated
+            and not s.followups
+            and not skip_extract
+            and not force_preview
+            and _record_too_vague(role, ext_fields, raw_text)
+        ):
+            self.store.audit(**audit, fields=result.values, result="guide:vague_extract")
+            tip = help_text(self.cfg, msg.chat_id)
+            self._reply(reply_to, tip)
             return
 
         if len(s.followups) >= self.cfg.session.max_followups:
@@ -833,7 +883,11 @@ class BotService:
         for s in expired:
             role = self.cfg.find_role(s.role)
             name = role.name if role else "记录"
-            self._reply(s.source_message_id, f"「{name}」补充信息超时，已放弃本次记录，未写入。", thread=True)
+            self._reply(
+                s.source_message_id,
+                f"已超时取消，「{name}」本次记录未写入。可重新 @我 再提。",
+                thread=True,
+            )
         return len(expired)
 
     def _sender_name(self, msg: IncomingMessage) -> str:

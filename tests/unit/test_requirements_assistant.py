@@ -389,3 +389,203 @@ def test_query_prefers_proposer_match(req_harness):
     assert "集团演示" in blob or "集团演示待评估" in blob
     assert "别人" not in blob or "无关" not in blob
     assert not h.api.records
+
+
+def test_low_confidence_record_guides(req_harness):
+    """LLM says record but low confidence → help guide, no补字段 / no session."""
+    h = req_harness
+    h.provider.outputs = [
+        {
+            "action": "record",
+            "role": "/提需求",
+            "confidence": 0.35,
+            "query": None,
+            "keywords": None,
+            "reason": "像需求又不像",
+        }
+    ]
+    h.service.handle(make_msg("那个东西记一下吧"))
+    assert h.api.replies
+    text = h.api.replies[-1]["text"]
+    assert "提需求" in text and "查进展" in text
+    assert "还需要补充" not in text
+    assert not h.api.records
+    assert h.store.sessions_for("oc_1", "ou_alice") == []
+    # only intent classify, no field extract
+    assert len(h.provider.calls) == 1
+
+
+def test_vague_extract_guides_not_followup(req_harness):
+    """High-conf record but extract has no title + short text → guide, not follow-up."""
+    h = req_harness
+    h.provider.outputs = [
+        {
+            "action": "record",
+            "role": "/提需求",
+            "confidence": 0.85,
+            "query": None,
+            "keywords": None,
+            "reason": "像登记",
+        },
+        {
+            "fields": {
+                "title": None,
+                "desc": None,
+                "project": None,
+                "type": None,
+                "priority": None,
+                "due": None,
+                "proposer": None,
+                "status": None,
+            },
+            "missing": ["title"],
+            "confidence": {},
+        },
+    ]
+    # Pass min_content_chars (12) so we reach extract, then vague-extract kicks in.
+    h.service.handle(make_msg("随便记一下这个事吧哈哈哈"))
+    text = h.api.replies[-1]["text"]
+    assert "提需求" in text and "查进展" in text
+    assert "还需要补充" not in text
+    assert h.store.sessions_for("oc_1", "ou_alice") == []
+
+
+def test_confirm_card_omits_trace_fields(req_cfg):
+    role = req_cfg.roles[0]
+    values = {
+        "title": "流式返回",
+        "desc": "给开放平台用",
+        "project": "其他",
+        "type": "优化",
+        "priority": "P1",
+        "proposer": "Alice",
+        "status": "待评估",
+        "source": "产品群",
+        "raw_text": "很长的原始消息" * 20,
+        "context": "前文摘录很多字",
+        "message_link": "https://feishu.cn/message/om_xxx",
+        "submitted_at": 1710000000000,
+    }
+    card = confirm_card(
+        role,
+        values,
+        {},
+        "Asia/Shanghai",
+        chat_id="oc",
+        user_id="ou",
+        source_message_id="om",
+    )
+    blob = str(card)
+    assert "流式返回" in blob and "P1" in blob
+    assert "很长的原始消息" not in blob
+    assert "https://feishu.cn/message/om_xxx" not in blob
+    assert "前文摘录" not in blob
+    assert "产品群" in blob  # footer 来源
+    actions = card["elements"][-1]["actions"]
+    assert {a["text"]["content"] for a in actions} == {"确认", "取消", "修改"}
+
+
+def test_followup_asks_all_missing_once(req_harness):
+    h = req_harness
+    # Long enough to pass min_content; extract missing title only (other fields have defaults).
+    h.provider.outputs = [
+        {
+            "action": "record",
+            "role": "/提需求",
+            "confidence": 0.9,
+            "query": None,
+            "keywords": None,
+            "reason": "提需求",
+        },
+        {
+            "fields": {
+                "title": None,
+                "desc": "用户说导出很慢需要优化性能相关能力",
+                "project": "其他",
+                "type": "优化",
+                "priority": "P1",
+                "due": None,
+                "proposer": None,
+                "status": None,
+            },
+            "missing": ["title"],
+            "confidence": {},
+        },
+    ]
+    h.service.handle(make_msg("导出很慢需要优化性能相关能力希望尽快处理一下优先级高"))
+    text = h.api.replies[-1]["text"]
+    assert "还需要补充" in text
+    assert "需求标题" in text
+    assert text.count("还需要补充") == 1
+    sessions = h.store.sessions_for("oc_1", "ou_alice")
+    assert sessions and "title" in sessions[0].missing
+
+
+def test_session_timeout_cancels(req_harness):
+    h = req_harness
+    h.provider.outputs = [
+        {
+            "action": "record",
+            "role": "/提需求",
+            "confidence": 0.9,
+            "query": None,
+            "keywords": None,
+            "reason": "ok",
+        },
+        {
+            "fields": {
+                "title": None,
+                "desc": "需要一个明确标题才能落盘的长描述内容",
+                "project": "其他",
+                "type": "新功能",
+                "priority": "P2",
+                "due": None,
+                "proposer": None,
+                "status": None,
+            },
+            "missing": ["title"],
+            "confidence": {},
+        },
+    ]
+    m = make_msg("需要一个明确标题才能落盘的长描述内容请登记一下")
+    h.service.handle(m)
+    assert h.store.sessions_for(m.chat_id, m.sender_open_id)
+    # Default requirements timeout is 15 minutes
+    h.clock.t += 16 * 60
+    n = h.service.expire_sessions()
+    assert n == 1
+    assert "已超时取消" in h.api.replies[-1]["text"]
+    assert h.store.sessions_for(m.chat_id, m.sender_open_id) == []
+
+
+def test_query_empty_does_not_pad_unrelated(req_harness):
+    """No keyword/own hit → empty; must not pad with unrelated others' rows."""
+    h = req_harness
+    h.api.users["ou_alice"] = "王雪旸"
+    h.api.bitable_rows = [
+        {
+            "record_id": "rec_noise1",
+            "fields": {"需求标题": "完全无关 A", "状态": "完成", "优先级": "P3", "提出人": "别人"},
+        },
+        {
+            "record_id": "rec_noise2",
+            "fields": {"需求标题": "完全无关 B", "状态": "完成", "优先级": "P3", "提出人": "路人"},
+        },
+    ]
+    h.provider.outputs = [
+        {
+            "action": "query",
+            "role": "/提需求",
+            "confidence": 0.9,
+            "query": "不存在的XYZ功能",
+            "keywords": ["不存在的XYZ功能"],
+            "reason": "查",
+        },
+        # Even if LLM tries to pick noise, search should return no candidates first.
+    ]
+    h.service.handle(make_msg("不存在的XYZ功能 进展怎样"))
+    last = h.api.replies[-1]
+    text = last.get("text") or str(last.get("card") or "")
+    assert "没找到" in text
+    assert "完全无关" not in text
+    assert last.get("type") != "interactive" or "完全无关" not in str(last.get("card"))
