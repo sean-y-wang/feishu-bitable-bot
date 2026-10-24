@@ -49,8 +49,34 @@ _STOP = frozenset(
         "需求",
         "记录",
         "看看",
+        "我的",
+        "我提的",
+        "我提交的",
+        "我登记的",
+        "查我的",
     }
 )
+
+_OWN_MARKERS = (
+    "我的需求",
+    "我提的",
+    "我提交的",
+    "我登记的",
+    "我的进展",
+    "查我的",
+)
+
+
+def is_own_progress_query(text: str) -> bool:
+    """True when the user is asking about their own submitted requirements."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if any(m in t for m in _OWN_MARKERS):
+        return True
+    if "我的" in t and any(h in t for h in ("进展", "怎样", "如何", "状态", "上线", "查")):
+        return True
+    return False
 
 
 def extract_keywords(text: str, llm_keywords: list[str] | None = None, limit: int = 5) -> list[str]:
@@ -65,11 +91,11 @@ def extract_keywords(text: str, llm_keywords: list[str] | None = None, limit: in
     parts = re.split(r"[\s,，、;；/|]+", t)
     out: list[str] = []
     for p in parts:
-        p = p.strip("？?！!。.·…~～「」“”\"'()（）[]")
+        p = p.strip("？?！!。.·…~～「」“”'\"()（）[]")
         if len(p) < 2 or p in _STOP:
             continue
         if p not in out:
             out.append(p)
         if len(out) >= limit:
             break
-    return out or ([text.strip()[:40]] if text.strip() else [])
+    return out or ([text.strip()[:40]] if text.strip() and not is_own_progress_query(text) else [])

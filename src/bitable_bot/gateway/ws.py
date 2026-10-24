@@ -78,11 +78,7 @@ class Gateway:
 
             toast = result.get("toast") or {}
             return P2CardActionTriggerResponse(
-                {
-                    "toast": CallBackToast(
-                        {"type": toast.get("type") or "info", "content": toast.get("content") or ""}
-                    )
-                }
+                {"toast": CallBackToast({"type": toast.get("type") or "info", "content": toast.get("content") or ""})}
             )
         except Exception:
             return result

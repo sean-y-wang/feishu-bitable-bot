@@ -132,7 +132,8 @@ def test_help_unknown_plain_and_nontext(harness):
     assert h.api.replies[-1]["text"].startswith("未知命令 /xyz")
     h.provider.outputs = [{"role": None, "confidence": 0.1, "reason": "greeting"}]
     h.service.handle(make_msg("你好"))
-    assert "我不确定要记录到哪张表" in h.api.replies[-1]["text"]
+    # greetings / chitchat → help guide (not role-pick / record)
+    assert "/日报" in h.api.replies[-1]["text"] or "可用命令" in h.api.replies[-1]["text"]
     h.service.handle(make_msg("/取消"))
     h.service.handle(make_msg("/bug"))
     assert "请在命令后附上内容" in h.api.replies[-1]["text"]

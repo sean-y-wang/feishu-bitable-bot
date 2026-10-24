@@ -1,3 +1,3 @@
-from .service import QueryService
+from .service import QueryResult, QueryService
 
-__all__ = ["QueryService"]
+__all__ = ["QueryResult", "QueryService"]

@@ -3,7 +3,7 @@
 trigger (@bot in group / any p2p message / reply in an open follow-up thread)
 → optional emoji reaction (dedicated bots)
 → route (slash = explicit role; otherwise LLM intent with action=record|query)
-→ dedicated mode: single role, only record|query (no role picking)
+→ dedicated mode: single role, only record|query|help (no role picking)
 → short-content guide / progress query / extract → validate
 → follow-up / confirm-before-write (interactive card) / write → receipt → audit.
 """
@@ -21,9 +21,9 @@ from .config.models import AppConfig, Role
 from .context import ContextCollector, ConversationContext
 from .edit_fields import is_cancel, is_skip, is_yes, parse_edits
 from .extractor import ExtractionError, Extractor, build_messages, classify
-from .extractor.intent import looks_like_query
+from .extractor.intent import looks_like_help, looks_like_query
 from .query import QueryService
-from .receipt import confirm_card, followup_text, preview_lines, success_card, success_text
+from .receipt import confirm_card, followup_text, preview_lines, query_card, success_card, success_text
 from .router import IncomingMessage, Kind, bot_mentioned, clean_text, extract_text, help_text, route
 from .session import Session, Store
 from .validator import Context, validate
@@ -189,15 +189,20 @@ class BotService:
             return
         provider = self.extractor.providers[self.cfg.intent.llm or self.extractor.default]
         intent = classify(provider, self.cfg, roles, text, conv.excerpt)
-        # Force the dedicated role onto the intent when present.
+        # Force the dedicated role onto the intent when present (except help/chitchat).
         if dedicated_role is not None:
-            intent.role = dedicated_role
-            if intent.action not in ("record", "query"):
-                # Heuristic fallback when LLM returns null action
-                intent.action = "query" if looks_like_query(text, self.cfg.intent.query_hints) else "record"
-                intent.confidence = max(intent.confidence, 0.8)
+            if intent.action == "help" or (intent.action not in ("record", "query", "help") and looks_like_help(text)):
+                intent.action = "help"
+                intent.role = None
+                intent.confidence = max(intent.confidence, 0.9)
             else:
-                intent.confidence = max(intent.confidence, self.cfg.intent.min_confidence)
+                intent.role = dedicated_role
+                if intent.action not in ("record", "query"):
+                    # Heuristic fallback when LLM returns null action
+                    intent.action = "query" if looks_like_query(text, self.cfg.intent.query_hints) else "record"
+                    intent.confidence = max(intent.confidence, 0.8)
+                else:
+                    intent.confidence = max(intent.confidence, self.cfg.intent.min_confidence)
         log.info(
             "intent.result",
             action=intent.action,
@@ -206,6 +211,10 @@ class BotService:
             reason=intent.reason,
             dedicated=bool(dedicated_role),
         )
+
+        if intent.action == "help":
+            self._reply(msg.message_id, help_text(self.cfg, msg.chat_id))
+            return
 
         if intent.action == "query":
             self._handle_query_intent(msg, intent, roles, text, people, conv)
@@ -354,13 +363,16 @@ class BotService:
         if self.query is None:
             self._reply(reply_to, "查询功能暂未就绪，请稍后再试或直接登记新内容。")
             return
+        sender_name = self._sender_name(msg)
         t0 = time.monotonic()
+        summary = ""
         try:
-            text, hits = self.query.run(role, query_text, keywords)
+            qres = self.query.run(role, query_text, keywords, sender_name=sender_name)
+            text, hits, rows, summary = qres.text, qres.record_ids, qres.rows, qres.summary
             result = "ok" if hits else "empty"
         except Exception as e:
             log.exception("query.failed")
-            text, hits, result = f"查询暂时失败：{e}", [], "error"
+            text, hits, rows, result = f"查询暂时失败：{e}", [], [], "error"
         self.store.audit(
             chat_id=msg.chat_id,
             sender=msg.sender_open_id,
@@ -370,8 +382,21 @@ class BotService:
             fields={"hits": hits},
             result=result,
         )
-        if hits and self.cfg.query_docs_hint:
-            text = text.rstrip() + "\n" + self.cfg.query_docs_hint
+        docs = self.cfg.query_docs_hint
+        if hits:
+            card = query_card(
+                role,
+                summary or text.split("\n", 1)[0],
+                rows,
+                docs_hint=docs,
+                base_url=getattr(self.query, "base_url", "https://feishu.cn"),
+            )
+            if self._reply_card(reply_to, card):
+                return
+            if docs:
+                text = text.rstrip() + "\n" + docs
+        elif docs and result == "empty":
+            pass
         self._reply(reply_to, text)
 
     # ------------------------------------------------------------------ extraction flow
@@ -810,6 +835,12 @@ class BotService:
             name = role.name if role else "记录"
             self._reply(s.source_message_id, f"「{name}」补充信息超时，已放弃本次记录，未写入。", thread=True)
         return len(expired)
+
+    def _sender_name(self, msg: IncomingMessage) -> str:
+        try:
+            return self.api.get_user_name(msg.sender_open_id) or ""
+        except Exception:
+            return ""
 
     def _reply(self, message_id: str, text: str, thread: bool = False) -> str | None:
         try:

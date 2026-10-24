@@ -130,9 +130,9 @@ def help_text(cfg: AppConfig, chat_id: str | None = None) -> str:
     if cfg.dedicated and cfg.roles:
         r = cfg.roles[0]
         lines = [
-            f"我是{name}，支持两件事：",
-            "1）信息收集 — 直接 @我说需求，我会在话题里用卡片请你确认后写入",
-            "2）进展咨询 — 问「XX 上线了吗 / 查一下 XX」，最多回 2 条最相关记录",
+            f"我是{name}，目前专注两件事：",
+            "1）提需求 — 直接 @我用自然语言说明，我会在话题里用卡片请你确认 / 取消 / 修改后再写入",
+            "2）查进展 — 问「我的需求进展如何 / XX 上线了吗」，按你的提问和提出人匹配，卡片最多回 2 条",
         ]
         if cfg.query_docs_hint:
             lines.append(f"   （{cfg.query_docs_hint}）")
