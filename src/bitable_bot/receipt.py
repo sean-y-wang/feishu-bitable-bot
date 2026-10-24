@@ -9,6 +9,9 @@ from .service_fmt import fmt_value
 from .writer.bitable import record_url
 
 _HIDDEN = frozenset({"$context", "$raw_text"})
+# Trace / provenance defaults — omit from confirm card body (footer only).
+_TRACE_DEFAULTS = frozenset({"$context", "$raw_text", "$message_link", "$chat_name", "$now"})
+_TRACE_KEYS = frozenset({"source", "raw_text", "context", "message_link", "submitted_at"})
 
 
 def visible_specs(role: Role, values: dict[str, Any] | None = None) -> list[FieldSpec]:
@@ -22,10 +25,40 @@ def visible_specs(role: Role, values: dict[str, Any] | None = None) -> list[Fiel
     return out
 
 
+def confirm_specs(role: Role, values: dict[str, Any] | None = None) -> list[FieldSpec]:
+    """Decision fields only: title/desc/business + proposer; no long trace fields."""
+    out = []
+    for spec in role.fields:
+        if spec.key in _TRACE_KEYS:
+            continue
+        if isinstance(spec.default, str) and spec.default in _TRACE_DEFAULTS:
+            continue
+        if values is not None and spec.key not in values:
+            continue
+        out.append(spec)
+    return out
+
+
+def _trace_footer(role: Role, values: dict[str, Any], people: dict[str, str], tz: str) -> str:
+    """One-line provenance: 来源群 · 提交时间."""
+    bits: list[str] = []
+    for key in ("source", "submitted_at"):
+        if key not in values:
+            continue
+        spec = role.field_by_key(key)
+        if not spec:
+            continue
+        bits.append(fmt_value(spec, values[key], people, tz))
+    return " · ".join(b for b in bits if b)
+
+
 def preview_lines(role: Role, values: dict[str, Any], people: dict[str, str], tz: str) -> list[str]:
     lines = [f"请确认写入「{role.name}」："]
-    for spec in visible_specs(role, values):
+    for spec in confirm_specs(role, values):
         lines.append(f"• {spec.field}：{fmt_value(spec, values[spec.key], people, tz)}")
+    footer = _trace_footer(role, values, people, tz)
+    if footer:
+        lines.append(f"来源：{footer}")
     lines.append(
         "回复「确认 / 好 / 是 / ok」写入；点卡片「确认 / 取消 / 修改」亦可；可直接改字段，如「优先级改成 P0」；/取消 放弃。"
     )
@@ -109,15 +142,30 @@ def confirm_card(
     user_id: str,
     source_message_id: str,
 ) -> dict[str, Any]:
-    """Interactive confirm / cancel / modify card posted inside the topic thread."""
+    """Interactive confirm / cancel / modify card posted inside the topic thread.
+
+    Shows decision fields only (title/desc/business/proposer). Trace fields collapse
+    to one footer line 「来源群 · 时间」— no raw message / long links in the body.
+    """
     fields = []
-    for spec in visible_specs(role, values):
+    for spec in confirm_specs(role, values):
         v = fmt_value(spec, values[spec.key], people, tz)
+        # Truncate long desc for card readability
+        if spec.key == "desc" and isinstance(v, str) and len(v) > 120:
+            v = v[:117] + "..."
         fields.append({"is_short": True, "text": {"tag": "lark_md", "content": f"**{spec.field}**\n{v}"}})
     elements: list[dict[str, Any]] = []
     if fields:
         for i in range(0, len(fields), 5):
             elements.append({"tag": "div", "fields": fields[i : i + 5]})
+    footer = _trace_footer(role, values, people, tz)
+    if footer:
+        elements.append(
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": f"_来源：{footer}_"},
+            }
+        )
     elements.append(
         {
             "tag": "div",

@@ -136,6 +136,8 @@ def search_candidates(
         ranked = rank_by_proposer(items, proposer_name, prop_field)
         return ranked[: q.max_candidates], "search"
 
+    # Keyword miss: only recover own rows via recent list. Never pad Top2 with
+    # unrelated others' records (empty-state must stay empty).
     try:
         items = api.list_records(role.target.app_token, role.target.table_id, page_size=q.fallback_limit)
     except FeishuAPIError as e:
@@ -143,9 +145,8 @@ def search_candidates(
         return [], "empty"
     if not items:
         return [], "empty"
-    ranked = rank_by_proposer(items, proposer_name, prop_field)
     if prefer_own and proposer_name and prop_field:
-        own = [r for r in ranked if _matches_proposer(r, prop_field, proposer_name)]
+        own = [r for r in items if _matches_proposer(r, prop_field, proposer_name)]
         if own:
             return own[: q.fallback_limit], "own_fallback"
-    return ranked[: q.fallback_limit], "fallback"
+    return [], "empty"

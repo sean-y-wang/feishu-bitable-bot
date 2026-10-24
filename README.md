@@ -55,9 +55,9 @@ Works over Feishu’s **WebSocket long connection** — deploy on a laptop or in
 - **Multi-role templates** — each role owns a Bitable target, fields, prompts, and optional query config
 - **Natural-language intent** — LLM picks role + `record` / `query`; low confidence asks you to confirm; slash commands always win
 - **Conversation context** — quoted message, thread, recent history (graceful degrade if scopes missing)
-- **Confirm before write** — preview + inline edits (`优先级改成 P0`) before insert
-- **Role system / guide prompts** — per-role tone; short messages get a guided follow-up instead of a bad row
-- **Progress query** — Bitable `contains` search → LLM rerank → Top‑N summary
+- **Confirm before write** — slim decision-only card (confirm / cancel / edit); ask all missing fields once; auto-cancel on timeout
+- **Role system / guide prompts** — per-role tone; chitchat / low-confidence / thin text → scenario guide, not field follow-ups
+- **Progress query** — proposer-biased match → Top‑N; empty state when nothing relevant (no padding)
 - **Traceability placeholders** — `$sender_name` `$raw_text` `$context` `$chat_name` `$message_link` `$now`
 - **Private chat (p2p)** — DM without `@` when enabled
 - **OpenAI-compatible LLM** — OpenAI, DashScope/Qwen, DeepSeek, Kimi, Zhipu, vLLM, Ollama, …
