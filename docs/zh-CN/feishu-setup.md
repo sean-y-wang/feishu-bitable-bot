@@ -21,6 +21,7 @@
 | `im:message:readonly` 或 `im:message.history:readonly` | 读历史、引用消息、消息位置 | 建议 |
 | `im:chat:readonly` | 群名（`$chat_name`）与群成员姓名 | 建议 |
 | `contact:contact.base:readonly` + `contact:user.base:readonly` | 通讯录姓名（`$sender_name`） | 可选 |
+| `im:message.reaction` 或消息表情相关权限 | @ 后点「收到」表情（`react_on_mention`） | 需求小助手建议 |
 
 说明：
 
@@ -35,7 +36,8 @@
 1. 先启动一次本服务，让长连接在线。
 2. 「事件与回调」→「事件配置」→ 订阅方式选 **使用长连接接收事件**。
 3. 添加事件 **接收消息 `im.message.receive_v1`**。
-4. 卡片回调 `card.action.trigger` 留给后续更丰富的卡片动作；当前 MVP 回执卡片不依赖它。
+4. 添加**卡片回传交互**回调：`card.action.trigger`（长连接一并订阅）。
+   需求小助手的确认卡片（确认 / 取消 / 修改）依赖此回调；缺失时仍可用文本「确认 / 取消」回退。
 
 ## 4. 发布
 

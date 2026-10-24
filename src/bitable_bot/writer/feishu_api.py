@@ -42,6 +42,8 @@ class FeishuAPI(Protocol):
 
     def list_records(self, app_token: str, table_id: str, page_size: int = 30) -> list[dict[str, Any]]: ...
 
+    def add_reaction(self, message_id: str, emoji_type: str = "Get") -> None: ...
+
 
 class LarkFeishuAPI:
     """Production implementation backed by lark_oapi.Client (handles tenant_access_token)."""
@@ -211,3 +213,24 @@ class LarkFeishuAPI:
             [("page_size", str(max(1, min(100, page_size)))), ("user_id_type", "open_id")],
         )
         return data.get("items") or []
+
+    def add_reaction(self, message_id: str, emoji_type: str = "Get") -> None:
+        """Best-effort message reaction (e.g. 「收到」). Needs im:message.reaction scope."""
+        from lark_oapi.api.im.v1 import (
+            CreateMessageReactionRequest,
+            CreateMessageReactionRequestBody,
+            Emoji,
+        )
+
+        req = (
+            CreateMessageReactionRequest.builder()
+            .message_id(message_id)
+            .request_body(
+                CreateMessageReactionRequestBody.builder()
+                .reaction_type(Emoji.builder().emoji_type(emoji_type).build())
+                .build()
+            )
+            .build()
+        )
+        resp = self.client.im.v1.message_reaction.create(req)
+        self._check(resp)

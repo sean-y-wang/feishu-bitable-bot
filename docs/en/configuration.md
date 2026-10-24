@@ -13,7 +13,8 @@ Credentials are **never** stored in YAML — reference them with `${ENV_VAR}` (s
 | `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | Required app credentials |
 | `FEISHU_DOMAIN` | `feishu` (default) or `lark` |
 | `FEISHU_BOT_OPEN_ID` | Optional; bot open_id for precise @ stripping |
-| `BOT_CONFIG` | Path to `roles.yaml` (default `config/roles.yaml`; image: `/app/config/roles.yaml`) |
+| `BOT_SCENARIO` | Built-in scenario: `requirements` → `config/roles.requirements.yaml` |
+| `BOT_CONFIG` | Custom path; overrides `BOT_SCENARIO`. Path to `roles.yaml` (default `config/roles.yaml`; image: `/app/config/roles.yaml`) |
 | `BOT_DB_PATH` | SQLite path (default `data/bot.db`; image: `/data/bot.db`) |
 | `BOT_WORKERS` | Worker threads (default `4`) |
 | `LOG_LEVEL` | Default `INFO` |

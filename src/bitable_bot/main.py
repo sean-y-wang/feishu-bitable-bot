@@ -26,6 +26,25 @@ DOMAINS = {
 }
 
 
+# Built-in scenario id → shipped YAML (dedicated single-role bots).
+BUILTIN_SCENARIOS = {
+    "requirements": "config/roles.requirements.yaml",
+}
+
+
+def resolve_config_path(env: dict[str, str]) -> str:
+    """BOT_CONFIG wins; else BOT_SCENARIO picks a built-in profile; else config/roles.yaml."""
+    if env.get("BOT_CONFIG"):
+        return env["BOT_CONFIG"]
+    scenario = (env.get("BOT_SCENARIO") or "").strip().lower()
+    if scenario:
+        if scenario not in BUILTIN_SCENARIOS:
+            known = ", ".join(sorted(BUILTIN_SCENARIOS))
+            raise ConfigError(f"unknown BOT_SCENARIO={scenario!r}; known: {known}")
+        return BUILTIN_SCENARIOS[scenario]
+    return "config/roles.yaml"
+
+
 class Settings:
     def __init__(self, env: dict[str, str]) -> None:
         missing = [k for k in ("FEISHU_APP_ID", "FEISHU_APP_SECRET") if not env.get(k)]
@@ -37,7 +56,7 @@ class Settings:
         if domain not in DOMAINS:
             raise ConfigError("FEISHU_DOMAIN must be 'feishu' or 'lark'")
         self.open_domain, self.web_domain, self.applink_host = DOMAINS[domain]
-        self.config_path = env.get("BOT_CONFIG", "config/roles.yaml")
+        self.config_path = resolve_config_path(env)
         self.db_path = env.get("BOT_DB_PATH", "data/bot.db")
         self.bot_open_id = env.get("FEISHU_BOT_OPEN_ID") or None
         self.log_level = env.get("LOG_LEVEL", "INFO")
@@ -108,7 +127,7 @@ def main() -> int:
     )
     service = build_service(settings, cfg, lark_client)
     threading.Thread(target=_sweeper, args=(service,), daemon=True, name="sweeper").start()
-    log.info("bot.starting", roles=[r.command for r in cfg.roles], db=settings.db_path, bot_open_id=service.bot_open_id)
+    log.info("bot.starting", scenario=cfg.scenario, dedicated=cfg.dedicated, bot_name=cfg.display_name(), roles=[r.command for r in cfg.roles], db=settings.db_path, bot_open_id=service.bot_open_id)
     Gateway(service, settings.workers).run(settings.app_id, settings.app_secret, settings.open_domain)
     return 0
 

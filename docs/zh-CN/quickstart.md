@@ -8,7 +8,9 @@
 git clone https://github.com/sean-y-wang/feishu-bitable-bot.git
 cd feishu-bitable-bot
 cp .env.example .env
-cp config/roles.example.yaml config/roles.yaml
+# 推荐：需求小助手专属场景
+cp config/roles.requirements.yaml config/roles.yaml
+# 或通用多角色：cp config/roles.example.yaml config/roles.yaml
 ```
 
 编辑 `.env`：
@@ -19,8 +21,9 @@ cp config/roles.example.yaml config/roles.yaml
 | `FEISHU_APP_SECRET` | 是 | 同上；切勿提交到 Git |
 | `FEISHU_DOMAIN` | 否 | `feishu`（默认）或 `lark` |
 | `OPENAI_API_KEY` / `DASHSCOPE_API_KEY` / … | 至少一个 | 需与 `roles.yaml` 里的 `${…}` 引用一致 |
+| `BOT_SCENARIO` | 否 | 设为 `requirements` 启用内置需求小助手 |
 
-编辑 `config/roles.yaml`：把占位符 `bascnXXXX` / `tblXXXX` 换成真实的 `app_token` / `table_id`，并保证 `field` 与表格列名完全一致。
+编辑 `config/roles.yaml`：把占位符（需求场景为 `bascnREQXXXX` / `tblREQXXXX`）换成真实的 `app_token` / `table_id`，并保证 `field` 与表格列名完全一致。
 
 ## 2. 运行
 

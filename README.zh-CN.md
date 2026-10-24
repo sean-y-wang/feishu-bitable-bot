@@ -6,6 +6,10 @@
 
 **把飞书 / Lark 群聊变成结构化多维表格记录 —— AI 抽取，无需公网回调。**
 
+> **推荐部署：内置「需求小助手」专属场景**（`BOT_SCENARIO=requirements`）。
+> 一个机器人只做两件事：信息收集 + 进展咨询；@ 后先点「收到」表情，在话题里用交互卡片确认 / 取消 / 修改；咨询最多回 2 条并引导自行查表。
+> 通用多角色模板仍可用（见 `config/roles.example.yaml`），适合进阶定制。
+
 [English](README.md) · [快速开始](docs/zh-CN/quickstart.md) · [飞书配置](docs/zh-CN/feishu-setup.md) · [配置说明](docs/zh-CN/configuration.md) · [架构](docs/zh-CN/architecture.md) · [贡献指南](CONTRIBUTING.zh-CN.md)
 
 ---
@@ -17,19 +21,20 @@
 *演示：自然语言记录（写前确认）+ 进展查询，无需斜杠命令。*
 
 ```text
-你：  @记录机器人 订单导出太慢了，P1，周五前要
-机器人：📋 预览 →「缺陷登记」
-      · 标题：订单导出过慢
-      · 严重程度：P1
-      · 截止日期：本周五
-      回「好」写入，或「严重程度改成 P0」修改。
+你：  @需求小助手 订单导出太慢了，P1，周五前要
+机器人：（消息上点「收到」表情）→ 话题里弹出确认卡片
+      · 需求标题：订单导出过慢
+      · 优先级：P1
+      [确认] [修改] [取消]
 
-你：  好
-机器人：✅ 已保存 — [打开记录]
+你：  （点确认）
+机器人：✅ 已写入需求小助手 — [打开记录]
 
-你：  @记录机器人 Acme API 上线了吗？
-机器人：🔍 找到 2 条相关记录
-      1. Acme API 流式返回 — 状态：联调中 · 负责人：…
+你：  @需求小助手 Acme API 上线了吗？
+机器人：🔍 最相关的 2 条
+      1. Acme API 流式返回 — 状态：联调中
+      2. …
+      若需要查看更多记录，请自行打开需求多维表格检索。
 ```
 
 基于飞书 **WebSocket 长连接**：笔记本或内网机器即可跑，不需要公网回调地址。
@@ -47,12 +52,14 @@
 ## 特性
 
 - **长连接（WebSocket）**：`lark-oapi` `ws.Client`，无入站端口
-- **多角色模板**：每角色独立目标表、字段、提示词与查询配置
-- **自然语言意图**：LLM 选角色并区分「记录 / 查询」；低置信度追问；斜杠命令优先
+- **内置「需求小助手」**：`BOT_SCENARIO=requirements` 专属机器人，仅 record|query，无需多场景意图路由
+- **多角色模板（进阶）**：每角色独立目标表、字段、提示词与查询配置
+- **自然语言意图**：专属模式只区分「记录 / 查询」；通用模式还可选角色；斜杠命令优先
 - **会话上下文**：引用消息、话题、最近群消息（缺权限自动降级）
-- **写前确认**：预览 + 就地改字段（`优先级改成 P0`）
+- **写前确认**：话题内交互卡片（确认 / 取消 / 修改）+ 文本回退
+- **@ 收到表情**：可配置 `react_on_mention`（默认需求场景开启）
 - **角色级系统提示 / 引导**：定制口吻；内容太短先引导，不硬写
-- **进展查询**：多维表格关键字检索 → LLM 重排 → Top‑N 汇总
+- **进展查询**：多维表格关键字检索 → LLM 重排 → Top‑N（需求场景默认 2）+ 引导查表
 - **溯源占位符**：`$sender_name` `$raw_text` `$context` `$chat_name` `$message_link` `$now`
 - **单聊**：开启后私聊无需 @
 - **OpenAI 兼容 LLM**：OpenAI / 通义 / DeepSeek / Kimi / 智谱 / vLLM / Ollama…
@@ -73,7 +80,10 @@
 git clone https://github.com/sean-y-wang/feishu-bitable-bot.git
 cd feishu-bitable-bot
 cp .env.example .env                       # App ID / Secret / LLM Key
-cp config/roles.example.yaml config/roles.yaml   # app_token / table_id / 字段
+# 推荐：需求小助手
+cp config/roles.requirements.yaml config/roles.yaml
+# 在 .env 增加：BOT_SCENARIO=requirements   （或 BOT_CONFIG=config/roles.yaml）
+# 把 bascnREQXXXX / tblREQXXXX 换成真实多维表格 ID
 docker compose up -d --build
 docker compose logs -f bot
 ```

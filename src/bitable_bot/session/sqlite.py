@@ -81,6 +81,15 @@ class Store:
                 "DELETE FROM sessions WHERE chat_id=? AND user_id=? AND role=?", (s.chat_id, s.user_id, s.role)
             )
 
+
+    def get_session(self, chat_id: str, user_id: str, role: str) -> Session | None:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT data FROM sessions WHERE chat_id=? AND user_id=? AND role=? AND expires_at>?",
+                (chat_id, user_id, role, self.clock()),
+            ).fetchone()
+        return Session(**json.loads(row[0])) if row else None
+
     def sessions_for(self, chat_id: str, user_id: str) -> list[Session]:
         """Active (unexpired) sessions of a user in a chat."""
         with self._lock:

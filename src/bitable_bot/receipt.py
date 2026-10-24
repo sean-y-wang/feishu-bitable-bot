@@ -25,7 +25,7 @@ def preview_lines(role: Role, values: dict[str, Any], people: dict[str, str], tz
     lines = [f"请确认写入「{role.name}」："]
     for spec in visible_specs(role, values):
         lines.append(f"• {spec.field}：{fmt_value(spec, values[spec.key], people, tz)}")
-    lines.append("回复「确认 / 好 / 是 / ok」写入；可直接改字段，如「优先级改成 P0」或「标题：xxx」；/取消 放弃。")
+    lines.append("回复「确认 / 好 / 是 / ok」写入；点卡片「确认 / 取消 / 修改」亦可；可直接改字段，如「优先级改成 P0」；/取消 放弃。")
     return lines
 
 
@@ -94,3 +94,71 @@ def followup_text(role: Role, missing: dict[str, str], optional_empty: list[Fiel
         lines.append(f"选填（{names}）可不填；若不想补充请回复「跳过」。")
     lines.append("/取消 可放弃。")
     return "\n".join(lines)
+
+
+def confirm_card(
+    role: Role,
+    values: dict[str, Any],
+    people: dict[str, str],
+    tz: str,
+    *,
+    chat_id: str,
+    user_id: str,
+    source_message_id: str,
+) -> dict[str, Any]:
+    """Interactive confirm / cancel / modify card posted inside the topic thread."""
+    fields = []
+    for spec in visible_specs(role, values):
+        v = fmt_value(spec, values[spec.key], people, tz)
+        fields.append({"is_short": True, "text": {"tag": "lark_md", "content": f"**{spec.field}**\n{v}"}})
+    elements: list[dict[str, Any]] = []
+    if fields:
+        for i in range(0, len(fields), 5):
+            elements.append({"tag": "div", "fields": fields[i : i + 5]})
+    elements.append(
+        {
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": "请确认是否写入。点 **修改** 后在本话题里回复字段修改（如「优先级改成 P0」）。",
+            },
+        }
+    )
+    payload_base = {
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "role": role.command,
+        "source": source_message_id,
+        "kind": "confirm",
+    }
+    elements.append(
+        {
+            "tag": "action",
+            "actions": [
+                {
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": "确认"},
+                    "type": "primary",
+                    "value": {**payload_base, "action": "confirm"},
+                },
+                {
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": "修改"},
+                    "type": "default",
+                    "value": {**payload_base, "action": "modify"},
+                },
+                {
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": "取消"},
+                    "type": "danger",
+                    "value": {**payload_base, "action": "cancel"},
+                },
+            ],
+        }
+    )
+    title = f"请确认写入「{role.name}」"
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {"title": {"tag": "plain_text", "content": title}, "template": "blue"},
+        "elements": elements,
+    }

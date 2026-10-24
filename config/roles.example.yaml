@@ -1,3 +1,5 @@
+# For the dedicated 需求小助手 bot, prefer config/roles.requirements.yaml + BOT_SCENARIO=requirements.
+# 专属「需求小助手」请用 config/roles.requirements.yaml，并设置 BOT_SCENARIO=requirements。
 # Copy to config/roles.yaml and edit.
 # 复制为 config/roles.yaml 后修改。
 # Credentials are NOT written here — use ${ENV_VAR} only.

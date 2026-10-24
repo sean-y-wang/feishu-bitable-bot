@@ -186,6 +186,13 @@ class SessionConfig(BaseModel):
 class AppConfig(BaseModel):
     version: int = 1
     timezone: str = "Asia/Shanghai"
+    # ---- dedicated / built-in scenario (需求小助手 etc.) ----
+    scenario: str | None = None  # e.g. "requirements"
+    dedicated: bool = False  # single-role bot: only record|query, no role picking
+    bot_name: str | None = None  # display name, e.g. 需求小助手
+    react_on_mention: bool = False  # emoji reaction on @ (best-effort)
+    react_emoji: str = "Get"  # Feishu emoji_type; "Get" ≈ 收到
+    query_docs_hint: str | None = None  # appended after top-N query hits
     llm: LLMConfig
     session: SessionConfig = Field(default_factory=SessionConfig)
     intent: IntentConfig = Field(default_factory=IntentConfig)
@@ -200,6 +207,8 @@ class AppConfig(BaseModel):
 
     @model_validator(mode="after")
     def _check(self) -> AppConfig:
+        if self.dedicated and len(self.roles) != 1:
+            raise ValueError("dedicated=true requires exactly one role (专属机器人场景)")
         seen: set[str] = set()
         for r in self.roles:
             for c in r.commands:
@@ -232,3 +241,15 @@ class AppConfig(BaseModel):
 
     def queryable_roles(self) -> list[Role]:
         return [r for r in self.roles if r.queryable]
+
+    def primary_role(self) -> Role | None:
+        """The only role when dedicated, else None."""
+        if self.dedicated and len(self.roles) == 1:
+            return self.roles[0]
+        return None
+
+    def display_name(self) -> str:
+        if self.bot_name:
+            return self.bot_name
+        r = self.primary_role()
+        return r.name if r else "记录机器人"

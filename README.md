@@ -6,6 +6,10 @@
 
 **Turn Feishu / Lark chat into structured Bitable rows — with AI, no public webhook required.**
 
+> **Recommended deploy: built-in Requirements Assistant** (`BOT_SCENARIO=requirements`, display name **需求小助手**).
+> One dedicated bot, two intents only: collect + consult. On @ it reacts with a “received” emoji, confirms inside a topic thread via an interactive card (Confirm / Cancel / Modify); consult returns at most 2 hits and points users to the table for more.
+> Generic multi-role templates remain available (`config/roles.example.yaml`) for advanced setups.
+
 [简体中文](README.zh-CN.md) · [Quick start](docs/en/quickstart.md) · [Feishu setup](docs/en/feishu-setup.md) · [Configuration](docs/en/configuration.md) · [Architecture](docs/en/architecture.md) · [Contributing](CONTRIBUTING.md)
 
 ---
@@ -17,19 +21,20 @@ Capture requirements, daily reports, and bugs from group chat or DM. The bot und
 *Demo: natural-language record with confirm, then a progress query — no slash commands required.*
 
 ```text
-You:  @RecordBot order export is too slow, P1, need it by Friday
-Bot:  📋 Preview →「缺陷登记」
-      · 标题：订单导出过慢
-      · 严重程度：P1
-      · 截止日期：本周五
-      Reply 好 to save, or 严重程度改成 P0 to edit.
+You:  @需求小助手 order export is too slow, P1, need it by Friday
+Bot:  (reacts 「收到」) → interactive confirm card in the topic
+      · 需求标题：订单导出过慢
+      · 优先级：P1
+      [Confirm] [Modify] [Cancel]
 
-You:  好
+You:  (tap Confirm)
 Bot:  ✅ Saved — [open record]
 
-You:  @RecordBot Acme API 上线了吗？
-Bot:  🔍 Found 2 related rows
-      1. Acme API 流式返回 — 状态：联调中 · 负责人：…
+You:  @需求小助手 is Acme API shipped yet?
+Bot:  🔍 Top 2 matches
+      1. Acme API 流式返回 — 状态：联调中
+      2. …
+      For more rows, open the requirements Bitable yourself.
 ```
 
 Works over Feishu’s **WebSocket long connection** — deploy on a laptop or intranet box; no public callback URL.
