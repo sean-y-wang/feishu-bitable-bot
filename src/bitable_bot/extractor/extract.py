@@ -11,6 +11,7 @@ import structlog
 
 from ..config.models import Role
 from ..providers.base import LLMError, LLMProvider
+from ..providers.openai_compat import provider_chain
 from .schema import build_schema, llm_fields
 
 log = structlog.get_logger(__name__)
@@ -66,13 +67,24 @@ def check_shape(obj: dict[str, Any], role: Role) -> Extraction:
 
 
 class Extractor:
-    def __init__(self, providers: dict[str, LLMProvider], default: str, max_retries: int = 2) -> None:
+    def __init__(
+        self,
+        providers: dict[str, LLMProvider],
+        default: str,
+        max_retries: int = 2,
+        fallback: list[str] | None = None,
+    ) -> None:
         self.providers = providers
         self.default = default
         self.max_retries = max_retries
+        self.fallback = list(fallback or [])
+
+    def resolve(self, preferred: str | None = None) -> LLMProvider:
+        """Primary provider, then configured cross-provider fallbacks."""
+        return provider_chain(self.providers, preferred or self.default, self.fallback)
 
     def extract(self, role: Role, messages: list[dict[str, str]]) -> Extraction:
-        provider = self.providers[role.llm or self.default]
+        provider = self.resolve(role.llm)
         schema = build_schema(role)
         msgs = list(messages)
         last_err: Exception | None = None

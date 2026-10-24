@@ -9,6 +9,7 @@ import structlog
 
 from ..config.models import AppConfig, Role
 from ..providers.base import LLMProvider
+from ..providers.openai_compat import provider_chain
 from ..writer.feishu_api import FeishuAPI
 from .keywords import extract_keywords, is_own_progress_query
 from .search import search_candidates
@@ -80,7 +81,7 @@ class QueryService:
                 f"也可以直接 {role.command} … 登记新需求。"
             )
             return QueryResult(text=text, summary=text)
-        provider = self.providers[role.llm or self.default]
+        provider = provider_chain(self.providers, role.llm or self.default, self.cfg.llm.fallback)
         summary, reply, chosen = rerank_and_summarize(
             provider,
             role,

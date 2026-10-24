@@ -62,6 +62,9 @@
 - **进展查询**：本人优先匹配 → Top‑N（默认 2）；无相关记录时空态提示，不凑无关行
 - **溯源占位符**：`$sender_name` `$raw_text` `$context` `$chat_name` `$message_link` `$now`
 - **单聊**：开启后私聊无需 @
+- **群→字段绑定**：按群固定写入「所属项目」等方向字段
+- **远程业务配置表**：prompt / 引导文案进多维表格，密钥仍走 `.env`；失败回退 YAML
+- **LLM 降级**：`fallback_models`（同 provider）+ `llm.fallback`（跨 provider）
 - **OpenAI 兼容 LLM**：OpenAI / 通义 / DeepSeek / Kimi / 智谱 / vLLM / Ollama…
 - **确定性校验**：数字、单选/多选（同义词、编辑距离）、相对日期、人员、链接
 - **幂等写入**：事件/消息去重 + Feishu `client_token`（UUIDv4）

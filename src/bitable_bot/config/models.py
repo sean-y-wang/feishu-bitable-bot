@@ -77,6 +77,7 @@ class Role(BaseModel):
     queryable: bool = False
     query: QueryConfig = Field(default_factory=QueryConfig)
     fields: list[FieldSpec]
+    chat_bindings: list[ChatFieldBinding] = Field(default_factory=list)
 
     @field_validator("command", "aliases")
     @classmethod
@@ -118,6 +119,45 @@ class Role(BaseModel):
         return None
 
 
+
+class ChatFieldBinding(BaseModel):
+    """Map a Feishu chat_id to a fixed Bitable field value (e.g. project / 需求方向)."""
+
+    field_key: str
+    value: Any
+    chat_ids: list[str] = Field(default_factory=list)
+    chat_id: str | None = None  # convenience single-id form
+    role_command: str | None = None  # optional: only apply to this role command/alias
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_ids(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        ids = list(data.get("chat_ids") or [])
+        single = data.get("chat_id")
+        if single and single not in ids:
+            ids.append(single)
+        if not ids:
+            raise ValueError("chat_field_binding requires chat_id or chat_ids")
+        data = {**data, "chat_ids": ids}
+        return data
+
+
+class RemoteConfig(BaseModel):
+    """Load business prompts / bindings from a Bitable (secrets stay in .env / YAML)."""
+
+    enabled: bool = False
+    app_token: str = ""
+    table_id: str = ""
+    refresh_seconds: int = Field(300, ge=0)  # 0 = load once at startup only
+    # Column titles in the config table (Feishu column names).
+    key_field: str = "config_key"
+    value_field: str = "config_value"
+    role_field: str = "role_command"
+    enabled_field: str = "enabled"
+
+
 class ProviderConfig(BaseModel):
     type: Literal["openai_compatible"] = "openai_compatible"
     base_url: str
@@ -126,16 +166,21 @@ class ProviderConfig(BaseModel):
     supports_json_schema: bool = False
     timeout: float = 30.0
     temperature: float = 0.0
+    fallback_models: list[str] = Field(default_factory=list)  # same endpoint, try next model on LLMError
 
 
 class LLMConfig(BaseModel):
     default: str
     providers: dict[str, ProviderConfig]
+    fallback: list[str] = Field(default_factory=list)  # provider names tried after default exhausts
 
     @model_validator(mode="after")
     def _default_exists(self) -> LLMConfig:
         if self.default not in self.providers:
             raise ValueError(f"llm.default {self.default!r} not in providers")
+        for name in self.fallback:
+            if name not in self.providers:
+                raise ValueError(f"llm.fallback provider {name!r} not in providers")
         return self
 
 
@@ -204,6 +249,8 @@ class AppConfig(BaseModel):
     chats_allowlist: list[str] = Field(default_factory=list)
     audit_store_text: bool = True
     roles: list[Role]
+    chat_field_bindings: list[ChatFieldBinding] = Field(default_factory=list)
+    remote_config: RemoteConfig = Field(default_factory=RemoteConfig)
 
     @model_validator(mode="after")
     def _check(self) -> AppConfig:
@@ -219,6 +266,8 @@ class AppConfig(BaseModel):
                 raise ValueError(f"role {r.command}: unknown llm {r.llm!r}")
         if self.intent.llm and self.intent.llm not in self.llm.providers:
             raise ValueError(f"intent.llm {self.intent.llm!r} not in providers")
+        if self.remote_config.enabled and (not self.remote_config.app_token or not self.remote_config.table_id):
+            raise ValueError("remote_config.enabled requires app_token and table_id")
         return self
 
     def find_role(self, command: str) -> Role | None:
@@ -253,3 +302,20 @@ class AppConfig(BaseModel):
             return self.bot_name
         r = self.primary_role()
         return r.name if r else "记录机器人"
+
+    def resolve_chat_bindings(self, chat_id: str, role: Role) -> list[tuple[str, Any]]:
+        """Return (field_key, value) pairs that apply to this chat + role."""
+        out: list[tuple[str, Any]] = []
+        seen: set[str] = set()
+        for b in (*self.chat_field_bindings, *role.chat_bindings):
+            if chat_id not in b.chat_ids:
+                continue
+            if b.role_command and b.role_command not in role.commands and b.role_command != role.name:
+                continue
+            if role.field_by_key(b.field_key) is None:
+                continue
+            if b.field_key in seen:
+                continue
+            seen.add(b.field_key)
+            out.append((b.field_key, b.value))
+        return out

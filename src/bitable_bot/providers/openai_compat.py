@@ -39,14 +39,41 @@ class OpenAICompatibleProvider:
         fmts += [{"type": "json_object"}, None]
         return fmts
 
+    def _models(self) -> list[str]:
+        seen: list[str] = []
+        for m in (self.cfg.model, *self.cfg.fallback_models):
+            if m and m not in seen:
+                seen.append(m)
+        return seen or [self.model]
+
     def extract(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
+        models = self._models()
+        last_err: Exception | None = None
+        for mi, model in enumerate(models):
+            try:
+                content = self._extract_one(messages, schema, model)
+                self.model = model  # reflect last successful model
+                return content
+            except LLMError as e:
+                last_err = e
+                if mi + 1 < len(models):
+                    log.warning(
+                        "llm.fallback",
+                        provider=self.name,
+                        from_model=model,
+                        to_model=models[mi + 1],
+                        error=str(e)[:200],
+                    )
+        raise last_err or LLMError(f"{self.name}: exhausted models")
+
+    def _extract_one(self, messages: list[dict[str, str]], schema: dict[str, Any], model: str) -> str:
         from openai import APIConnectionError, APIStatusError, APITimeoutError, BadRequestError
 
         formats = self._formats(schema)
         fi = 0
         attempt = 0
         while True:
-            kwargs: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": self.cfg.temperature}
+            kwargs: dict[str, Any] = {"model": model, "messages": messages, "temperature": self.cfg.temperature}
             if formats[fi] is not None:
                 kwargs["response_format"] = formats[fi]
             t0 = time.monotonic()
@@ -57,7 +84,7 @@ class OpenAICompatibleProvider:
                 log.info(
                     "llm.ok",
                     provider=self.name,
-                    model=self.model,
+                    model=model,
                     ms=int((time.monotonic() - t0) * 1000),
                     tokens=getattr(usage, "total_tokens", None),
                 )
@@ -65,19 +92,66 @@ class OpenAICompatibleProvider:
             except BadRequestError as e:
                 # response_format unsupported -> degrade (json_schema -> json_object -> prompt only)
                 if fi + 1 < len(formats):
-                    log.info("llm.degrade_format", provider=self.name, error=str(e)[:200])
+                    log.info("llm.degrade_format", provider=self.name, model=model, error=str(e)[:200])
                     fi += 1
                     continue
-                raise LLMError(f"{self.name}: {e}") from e
+                raise LLMError(f"{self.name}/{model}: {e}") from e
             except (APIConnectionError, APITimeoutError, APIStatusError) as e:
                 status = getattr(e, "status_code", None)
                 retryable = status is None or status == 429 or status >= 500
                 attempt += 1
                 if not retryable or attempt >= self.max_attempts:
-                    raise LLMError(f"{self.name}: {e}") from e
+                    raise LLMError(f"{self.name}/{model}: {e}") from e
                 delay = min(8.0, 0.5 * 2 ** (attempt - 1)) + random.random() * 0.1
-                log.warning("llm.retry", provider=self.name, status=status, delay=round(delay, 2))
+                log.warning("llm.retry", provider=self.name, model=model, status=status, delay=round(delay, 2))
                 self._sleep(delay)
+
+
+class ChainedProvider:
+    """Try providers in order; log llm.fallback when switching."""
+
+    def __init__(self, providers: list[OpenAICompatibleProvider]) -> None:
+        if not providers:
+            raise ValueError("ChainedProvider needs at least one provider")
+        self._providers = providers
+        self.name = providers[0].name
+        self.model = providers[0].model
+
+    def extract(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> str:
+        last_err: Exception | None = None
+        for i, p in enumerate(self._providers):
+            try:
+                if i > 0:
+                    prev = self._providers[i - 1]
+                    log.warning(
+                        "llm.fallback",
+                        from_provider=prev.name,
+                        from_model=getattr(prev, "model", None),
+                        to_provider=p.name,
+                        to_model=getattr(p, "model", None),
+                    )
+                content = p.extract(messages, schema)
+                self.name = p.name
+                self.model = getattr(p, "model", self.model)
+                return content
+            except LLMError as e:
+                last_err = e
+                log.warning("llm.provider_failed", provider=p.name, error=str(e)[:200])
+        raise last_err or LLMError("all providers failed")
+
+
+def provider_chain(
+    providers: dict[str, OpenAICompatibleProvider], primary: str, fallback: list[str] | None = None
+) -> ChainedProvider | OpenAICompatibleProvider:
+    """Build a chain: primary, then llm.fallback names that exist."""
+    names: list[str] = []
+    for n in (primary, *(fallback or [])):
+        if n and n in providers and n not in names:
+            names.append(n)
+    if not names:
+        raise KeyError(primary)
+    chain = [providers[n] for n in names]
+    return chain[0] if len(chain) == 1 else ChainedProvider(chain)
 
 
 def build_providers(cfg) -> dict[str, OpenAICompatibleProvider]:
