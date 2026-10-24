@@ -90,7 +90,7 @@ chat_field_bindings:
 
 ## 远程业务配置表
 
-把 **业务性** 配置（system / guide prompt、引导文案、字段说明、群绑定等）放进一张多维表格，改完重启（或下次启动）即可生效，**不必改程序**。  
+把 **业务性** 配置（system / guide prompt、引导文案、字段说明、群绑定等）放进一张多维表格，改完在[运行看板](dashboard.md)点「重新加载业务配置」即热生效（或等 `refresh_seconds` 自动刷新），**不必改程序**。  
 **密钥与基础设施仍留 `.env` / YAML**：`FEISHU_APP_*`、LLM `api_key` / `base_url`、`target.app_token`、`BOT_SCENARIO` 等**不会**被远程表覆盖。
 
 ```yaml
@@ -98,7 +98,7 @@ remote_config:
   enabled: true
   app_token: bascnXXXX
   table_id: tblXXXX
-  refresh_seconds: 300   # 预留；当前在启动时拉取一次
+  refresh_seconds: 300   # 自动刷新间隔（秒）；0 = 只在启动时 + 看板手动重载
 ```
 
 建议表结构（一行一项，飞书里好改）：
@@ -176,3 +176,7 @@ llm:
 - 意图返回 `action=query`，或斜杠正文命中 `query_hints`。
 - 查询**不开** session、**不写**表。
 - 流水线：对 `search_fields` 做 Bitable `contains` → LLM 重排 → Top `max_reply`；0 命中则拉最近 `fallback_limit` 条再重排。
+
+## 运行看板
+
+`DASHBOARD_TOKEN`（≥16 位，未设置则不启用）/ `DASHBOARD_HOST`（默认 `127.0.0.1`）/ `DASHBOARD_PORT`（默认 `8787`）/ `BOT_ENV_FILE`（密钥覆盖写入的文件，默认 `.env`）。功能、热生效清单与部署见 [dashboard.md](dashboard.md)。

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import structlog
@@ -10,6 +11,9 @@ import structlog
 from .models import AppConfig, ChatFieldBinding, RemoteConfig
 
 log = structlog.get_logger(__name__)
+
+# Result of the most recent apply_remote_config() (read by the dashboard at startup).
+LAST_LOAD: dict[str, Any] = {}
 
 # Keys that may be overwritten from the remote table (never secrets / target tokens / providers).
 _GLOBAL_TEXT = {"first_guide_text", "query_docs_hint", "bot_name"}
@@ -133,9 +137,7 @@ def parse_config_rows(
     return global_ov, role_ov, bindings
 
 
-def merge_remote_into_config(
-    cfg: AppConfig, rows: list[dict[str, Any]]
-) -> AppConfig:
+def merge_remote_into_config(cfg: AppConfig, rows: list[dict[str, Any]]) -> AppConfig:
     """Overlay business fields from table rows onto a loaded AppConfig. Secrets untouched."""
     global_ov, role_ov, binding_dicts = parse_config_rows(rows, cfg.remote_config)
     data = cfg.model_dump()
@@ -198,6 +200,8 @@ def apply_remote_config(cfg: AppConfig, api: Any | None) -> AppConfig:
     try:
         rows = fetch_remote_rows(api, cfg.remote_config)
         merged = merge_remote_into_config(cfg, rows)
+        LAST_LOAD.clear()
+        LAST_LOAD.update(source="remote", ok=True, rows=len(rows), error="", at=time.time())
         log.info(
             "remote_config.applied",
             rows=len(rows),
@@ -206,5 +210,7 @@ def apply_remote_config(cfg: AppConfig, api: Any | None) -> AppConfig:
         )
         return merged
     except Exception as e:
+        LAST_LOAD.clear()
+        LAST_LOAD.update(source="local_fallback", ok=False, rows=None, error=str(e)[:300], at=time.time())
         log.warning("remote_config.failed", error=str(e)[:300])
         return cfg

@@ -57,14 +57,14 @@ Or under a role: `roles[].chat_bindings`. Applied before validate/confirm (user 
 
 ## Remote business config table
 
-Store **business** knobs (system/guide prompts, guide copy, field descriptions, chat bindings) in a Bitable. Secrets and infra stay in `.env` / YAML and are never overwritten remotely. On fetch failure the bot keeps local YAML and logs a warning.
+Store **business** knobs (system/guide prompts, guide copy, field descriptions, chat bindings) in a Bitable. Secrets and infra stay in `.env` / YAML and are never overwritten remotely. On fetch failure the bot keeps the previous config and logs a warning. Reload on demand from the [runtime dashboard](dashboard.md).
 
 ```yaml
 remote_config:
   enabled: true
   app_token: bascnXXXX
   table_id: tblXXXX
-  refresh_seconds: 300   # reserved; applied at startup today
+  refresh_seconds: 300   # auto-refresh interval (s); 0 = startup + manual reload from the dashboard
 ```
 
 Suggested columns: `config_key` | `config_value` | `role_command` | `enabled`.  
@@ -134,3 +134,7 @@ Us as `default:`:
 - Intent returns `action=query`, or a slash body hits `query_hints`.
 - Queries do **not** open a session and do **not** write rows.
 - Pipeline: Bitable `contains` on `search_fields` → LLM rerank → Top `max_reply`; zero hits → latest `fallback_limit` rows → rerank again.
+
+## Runtime dashboard
+
+`DASHBOARD_TOKEN` (≥16 chars; unset = disabled) / `DASHBOARD_HOST` (default `127.0.0.1`) / `DASHBOARD_PORT` (default `8787`) / `BOT_ENV_FILE` (where secret overrides are written, default `.env`). Panels, hot-vs-restart list and deployment: [dashboard.md](dashboard.md).

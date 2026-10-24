@@ -13,5 +13,8 @@ RUN useradd --system --uid 10001 --home /app bot && mkdir -p /app/config /data &
 WORKDIR /app
 USER 10001
 VOLUME ["/data"]
-# No inbound ports: events arrive over an outbound WebSocket long connection.
+# Events arrive over an outbound WebSocket long connection; 8787 is only the optional
+# internal dashboard (enabled when DASHBOARD_TOKEN is set; keep it on the LAN).
+ENV DASHBOARD_PORT=8787 BOT_ENV_FILE=/app/.env
+EXPOSE 8787
 ENTRYPOINT ["python", "-m", "bitable_bot"]
