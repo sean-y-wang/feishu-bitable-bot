@@ -12,7 +12,7 @@
 
 Capture requirements, daily reports, and bugs from group chat or DM. The bot understands natural language (slash commands optional), pulls conversation context, confirms before writing when you want, and keeps a full trail back to the original message. Ask “is Acme API shipped yet?” and it searches the same table for progress.
 
-![Demo](docs/assets/demo.gif)
+![Demo](https://cdn.jsdelivr.net/gh/sean-y-wang/feishu-bitable-bot@main/docs/assets/demo.gif)
 
 *Demo: natural-language record with confirm, then a progress query — no slash commands required.*
 
@@ -94,7 +94,7 @@ Then: open the Feishu developer console → scopes + long connection + publish �
 
 High-level data flow (single process, outbound WebSocket only):
 
-![Architecture](docs/assets/architecture.svg)
+![Architecture](https://cdn.jsdelivr.net/gh/sean-y-wang/feishu-bitable-bot@main/docs/assets/architecture.png)
 
 ```mermaid
 flowchart LR

@@ -12,7 +12,7 @@
 
 在群里或私聊里随口说出需求、日报、缺陷，机器人会理解自然语言（斜杠命令可选）、带上聊天上下文、按需写前确认，并把原始消息与话题摘录一并落表便于追溯。也可以直接问「Acme API 上线了吗」，它会在同一张表里检索相似记录并汇总进展。
 
-![Demo](docs/assets/demo.gif)
+![Demo](https://cdn.jsdelivr.net/gh/sean-y-wang/feishu-bitable-bot@main/docs/assets/demo.gif)
 
 *演示：自然语言记录（写前确认）+ 进展查询，无需斜杠命令。*
 
@@ -94,7 +94,7 @@ English: [Quick start](docs/en/quickstart.md) · [Feishu setup](docs/en/feishu-s
 
 高层数据流（单进程、仅出站 WebSocket 长连接）：
 
-![架构图](docs/assets/architecture.svg)
+![架构图](https://cdn.jsdelivr.net/gh/sean-y-wang/feishu-bitable-bot@main/docs/assets/architecture.png)
 
 ```mermaid
 flowchart LR
