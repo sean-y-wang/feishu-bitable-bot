@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). [简体中文](CHANGELOG.zh-CN.md)
 
+## [0.9.0] - 2026-11-01
+
+### Added
+- Extend the existing Requirements Assistant with four configurable business tables, Chinese columns, review flags, and table-scoped idempotency. Confirmation drafts remain local.
+- Explicit requests enter review after confirmation; automatic candidates enter triage; group progress is silently logged for review. Group observation requires explicit scope and permission preflight.
+- Installable `progress-sync` skill for Claude Code / Codex / Orca: Git-first summaries, personal OAuth identity, mapped-module task matching, daily upserts, and offline dry-run. Master does not write tables.
+- Durable daily/weekly confirmation drafts, weekday 09:00 / Friday 18:00 scheduler outbox, stale daily redrafts, and complete cross-person manager reports with missing confirmations and risks.
+- Administrator deployment guide, PR draft, card snapshots, and offline acceptance script. Real scheduled delivery and native Agent hook registration remain deployment adapters.
+
 ## [Unreleased]
 
 ### Fixed

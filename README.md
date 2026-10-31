@@ -1,5 +1,8 @@
 # feishu-bitable-bot
 
+**0.9.0:** [Requirements progress deployment guide (中文)](docs/zh-CN/requirements-0.9.md) · [Local progress-sync skill](skills/progress-sync/SKILL.md). Extends the same bot with four tables and daily/weekly confirmation scaffolding.
+
+
 [![CI](https://github.com/sean-y-wang/feishu-bitable-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/sean-y-wang/feishu-bitable-bot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
