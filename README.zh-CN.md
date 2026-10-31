@@ -1,5 +1,8 @@
 # feishu-bitable-bot
 
+**0.9.0：** [需求收集与进展同步部署说明](docs/zh-CN/requirements-0.9.md) · [本机 progress-sync skill](skills/progress-sync/SKILL.md)。扩展原需求小助手，提供四表入池、本人进展同步与日报/周报确认骨架。
+
+
 [![CI](https://github.com/sean-y-wang/feishu-bitable-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/sean-y-wang/feishu-bitable-bot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
